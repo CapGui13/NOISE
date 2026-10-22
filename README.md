@@ -19,7 +19,12 @@ Détecteur de bruit pour les tournois de bridge, pensé pour Safari sur un iPhon
 6. Laisser l'application au premier plan, l'écran déverrouillé et l'iPhone sur secteur.
 7. Optionnel : Safari → Partager → **Sur l'écran d'accueil**.
 
-**Fiabilité v3.2 :** les redémarrages recréent la session audio et relibèrent les ressources ; un démarrage annulé pendant la permission micro ne peut plus relancer la surveillance. L'affichage est explicitement un **indice relatif /100**, pas des décibels.
+**Fiabilité v4 :**
+- L'AudioContext est réutilisé entre les démarrages pour éviter les fermetures/réouvertures concurrentes sur Safari iOS. Le microphone est bien libéré à chaque arrêt.
+- « Arrêter » annule aussi le test sonore, y compris pendant une demande d'autorisation micro. Un délai d'attente de 15 secondes évite de bloquer toute l'interface si Safari ne répond pas.
+- La mesure est un **indice relatif 0–100**, et NON des décibels acoustiques (dB SPL). L'ancienne échelle plafonnait artificiellement à environ 80 ; le seuil conservé est converti automatiquement lors du premier lancement V4 pour maintenir un déclenchement voisin.
+- Une alarme dont la génération échoue n'est plus comptabilisée ; un nouvel essai est autorisé 5 secondes après l'échec.
+- Sept tests de régression s'exécutent automatiquement via GitHub Actions (`node --test tests/noise.test.cjs`).
 
 **Important :** iOS peut interrompre la capture du micro quand l'écran est verrouillé ou quand l'application n'est plus visible. À la reprise, toucher **Démarrer**. Le niveau mesuré n'est pas un sonomètre étalonné.
 
