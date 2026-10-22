@@ -73,15 +73,15 @@ details{margin-top:8px}summary{font-weight:700;cursor:pointer;padding:5px 0}deta
 <div class="control"><div class="controlline"><label for="delay">Bruit continu avant bip</label><output id="delayOut">4 s</output></div><input id="delay" type="range" min="2" max="15" step="1" value="4"></div>
 <div class="control"><div class="controlline"><label for="cooldown">Repos entre deux alertes</label><output id="cooldownOut">60 s</output></div><input id="cooldown" type="range" min="15" max="300" step="15" value="60"></div>
 <div class="control"><div class="controlline"><label for="volume">Intensité du bip</label><output id="volumeOut">80 %</output></div><input id="volume" type="range" min="10" max="100" step="10" value="80"></div>
-<div class="control"><label for="sound">Type d'alarme</label><select id="sound"><option value="double">Double bip (conseillé)</option><option value="single">Bip court</option><option value="chime">Carillon discret</option></select></div>
-<div class="actions" style="margin-top:19px"><button id="test" class="secondary">🔊 Tester le son</button><button id="reset" class="secondary">Réglages par défaut</button></div>
+<div class="control"><label for="sound">Type d'alarme</label><select id="sound"><option value="loud">Salle bruyante (3 bips renforcés)</option><option value="double">Double bip classique</option><option value="single">Bip court</option><option value="chime">Carillon discret</option></select></div>
+<p class="help">Le mode « Salle bruyante » joue trois tonalités pendant environ 1,4 seconde. Il est plus reconnaissable, mais le volume maximal reste limité par le haut-parleur de l’iPhone. Teste-le d’abord à distance.</p><div class="actions" style="margin-top:19px"><button id="test" class="secondary">🔊 Tester le son</button><button id="reset" class="secondary">Réglages par défaut</button></div>
 <div class="notice" id="info">Conseil : démarre, teste le son, puis calibre la salle au niveau de bruit acceptable.</div>
 </section>
 <section class="card"><details><summary>📱 Conseils pour l'ancien iPhone</summary>
 <ol><li>Ouvre l'application dans Safari en HTTPS et autorise le microphone.</li><li>Désactive le mode silencieux, monte le volume puis utilise « Tester le son ».</li><li>Dans Réglages → Luminosité et affichage → Verrouillage automatique, choisis « Jamais » pendant la séance si disponible.</li><li>Laisse l'iPhone branché, écran allumé et NOISE au premier plan. Évite de le poser juste à côté d'une seule table.</li><li>Si tu reviens dans NOISE après avoir verrouillé l'écran, appuie sur Démarrer pour relancer la surveillance.</li></ol>
 <p>La puissance du haut-parleur d'un ancien iPhone peut être insuffisante pour une grande salle. Une enceinte externe peut aider, mais il faut la tester : son propre bip peut être capté par le micro.</p>
 </details></section>
-<p class="footer">NOISE v2 · Fonctionnement local, sans serveur d'écoute ni stockage des sons. Les seuls éléments mémorisés sur cet appareil sont tes réglages. Les chiffres ne sont pas des dB SPL mesurés par un sonomètre calibré. Safari peut interrompre le microphone lorsque l'application n'est plus visible.</p>
+<p class="footer">NOISE v3 · Fonctionnement local, sans serveur d'écoute ni stockage des sons. Les seuls éléments mémorisés sur cet appareil sont tes réglages. Les chiffres ne sont pas des dB SPL mesurés par un sonomètre calibré. Safari peut interrompre le microphone lorsque l'application n'est plus visible.</p>
 </main>
 <script>
 (function(){
@@ -99,7 +99,7 @@ function state(msg,kind){ui.state.textContent=msg;ui.state.className="state "+(k
 function safeGet(id){try{return localStorage.getItem("noise_"+id)}catch(e){return null}}
 function safeSet(id,v){try{localStorage.setItem("noise_"+id,v)}catch(e){}}
 function sync(){["threshold","delay","cooldown","volume"].forEach(function(id){el(id+"Out").textContent=el(id).value+(id==="threshold"?" / 100":id==="volume"?" %":" s")});ui.marker.style.left=n("threshold")+"%";ui.markerText.textContent="Seuil : "+n("threshold");paint()}
-ids.forEach(function(id){var old=safeGet(id);if(old!==null){if(id==="sound"){if(["single","double","chime"].indexOf(old)>=0)el(id).value=old}else{var input=el(id),v=Number(old);if(isFinite(v))input.value=clamp(v,Number(input.min),Number(input.max))}}el(id).addEventListener("input",function(){safeSet(id,el(id).value);sync()});el(id).addEventListener("change",function(){safeSet(id,el(id).value);sync()})});
+ids.forEach(function(id){var old=safeGet(id);if(old!==null){if(id==="sound"){if(["single","double","chime","loud"].indexOf(old)>=0)el(id).value=old}else{var input=el(id),v=Number(old);if(isFinite(v))input.value=clamp(v,Number(input.min),Number(input.max))}}el(id).addEventListener("input",function(){safeSet(id,el(id).value);sync()});el(id).addEventListener("change",function(){safeSet(id,el(id).value);sync()})});
 function paint(){
 var cv=ui.history,c=cv.getContext("2d"),w=cv.width,h=cv.height,t=n("threshold");
 if(!c)return;
@@ -111,7 +111,7 @@ if(history.length){c.strokeStyle="#5ee5bf";c.lineWidth=3;c.lineJoin="round";c.be
 }
 function audio(){if(!ctx){var A=window.AudioContext||window.webkitAudioContext;if(!A)throw Error("Audio Web indisponible");ctx=new A()}if(ctx.state!=="running"){var p=ctx.resume();if(p&&p.catch)p.catch(function(){say("Le son a été bloqué. Appuie sur « Tester le son » et vérifie le mode silencieux.")})}return ctx}
 function note(freq,at,duration,amp,type){var c=audio(),o=c.createOscillator(),g=c.createGain();o.type=type||"square";o.frequency.setValueAtTime(freq,at);g.gain.setValueAtTime(0.0001,at);g.gain.exponentialRampToValueAtTime(Math.max(.0001,amp),at+.016);g.gain.setValueAtTime(Math.max(.0001,amp),at+duration-.055);g.gain.exponentialRampToValueAtTime(.0001,at+duration);o.connect(g);g.connect(c.destination);o.start(at);o.stop(at+duration+.01)}
-function beep(){try{var c=audio(),t=c.currentTime+.02,v=n("volume")/100,mode=el("sound").value;if(mode==="single"){note(990,t,.38,.26*v,"square")}else if(mode==="chime"){note(880,t,.33,.18*v,"sine");note(1175,t+.21,.42,.16*v,"sine")}else{note(1030,t,.24,.28*v,"square");note(1030,t+.34,.24,.28*v,"square")}return c.state==="running"}catch(err){say("Son impossible : "+err.message);return false}}
+function beep(){try{var c=audio(),t=c.currentTime+.02,v=n("volume")/100,mode=el("sound").value;if(mode==="loud"){note(1000,t,.37,.35*v,"square");note(1370,t+.48,.37,.35*v,"square");note(1080,t+.96,.40,.35*v,"square")}else if(mode==="single"){note(990,t,.38,.26*v,"square")}else if(mode==="chime"){note(880,t,.33,.18*v,"sine");note(1175,t+.21,.42,.16*v,"sine")}else{note(1030,t,.24,.28*v,"square");note(1030,t+.34,.24,.28*v,"square")}return c.state==="running"}catch(err){say("Son impossible : "+err.message);return false}}
 function stop(reason){
 active=false;cancelAnimationFrame(raf);
 if(stream){stream.getTracks().forEach(function(t){t.onended=null;t.stop()});stream=null}
@@ -195,7 +195,7 @@ ui.stop.addEventListener("click",function(){stop("")});
 ui.calibrate.addEventListener("click",function(){if(!active)return;calibration={end:performance.now()+8000,values:[]};over=false;overSince=0;say("Calibrage sur 8 secondes : fais-le quand le volume de la salle est encore acceptable.")});
 ui.capture.addEventListener("click",function(){if(!active||calibration)return;var val=clamp(measured,10,95);el("threshold").value=val;safeSet("threshold",val);over=false;overSince=0;sync();say("Seuil réglé à "+val+"/100 d'après le bruit actuel. Ajuste-le si nécessaire.")});
 ui.test.addEventListener("click",function(){var ok=beep();if(ok)say("Son de test joué. Si tu n'as rien entendu : désactive le mode silencieux et monte le volume de l'iPhone.")});
-ui.reset.addEventListener("click",function(){var values={threshold:55,delay:4,cooldown:60,volume:80,sound:"double"};ids.forEach(function(k){el(k).value=values[k];safeSet(k,values[k])});sync();say("Réglages par défaut rétablis.")});
+ui.reset.addEventListener("click",function(){var values={threshold:55,delay:4,cooldown:60,volume:80,sound:"loud"};ids.forEach(function(k){el(k).value=values[k];safeSet(k,values[k])});sync();say("Réglages par défaut rétablis.")});
 document.addEventListener("visibilitychange",function(){if(document.hidden&&active)stop("Page masquée ou écran verrouillé. Relance la surveillance au retour.")});
 window.addEventListener("pagehide",function(){if(active)stop("Page quittée. Relance la surveillance.")});
 sync();paint();
