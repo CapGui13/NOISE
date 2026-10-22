@@ -81,15 +81,15 @@ details{margin-top:8px}summary{font-weight:700;cursor:pointer;padding:5px 0}deta
 <ol><li>Ouvre l'application dans Safari en HTTPS et autorise le microphone.</li><li>Désactive le mode silencieux, monte le volume puis utilise « Tester le son ».</li><li>Dans Réglages → Luminosité et affichage → Verrouillage automatique, choisis « Jamais » pendant la séance si disponible.</li><li>Laisse l'iPhone branché, écran allumé et NOISE au premier plan. Évite de le poser juste à côté d'une seule table.</li><li>Si tu reviens dans NOISE après avoir verrouillé l'écran, appuie sur Démarrer pour relancer la surveillance.</li></ol>
 <p>La puissance du haut-parleur d'un ancien iPhone peut être insuffisante pour une grande salle. Une enceinte externe peut aider, mais il faut la tester : son propre bip peut être capté par le micro.</p>
 </details></section>
-<p class="footer">NOISE v3.2 · Fonctionnement local, sans serveur d'écoute ni stockage des sons. Les seuls éléments mémorisés sur cet appareil sont tes réglages. Les chiffres ne sont pas des dB SPL mesurés par un sonomètre calibré. Safari peut interrompre le microphone lorsque l'application n'est plus visible.</p>
+<p class="footer">NOISE v4.0 · Fonctionnement local, sans serveur d'écoute ni stockage des sons. Les seuls éléments mémorisés sur cet appareil sont tes réglages. Les chiffres ne sont pas des dB SPL mesurés par un sonomètre calibré. Safari peut interrompre le microphone lorsque l'application n'est plus visible.</p>
 </main>
 <script>
 (function(){
 "use strict";
 var ids=["threshold","delay","cooldown","volume","sound"];
 var ctx=null,stream=null,source=null,analyser=null,buffer=null,raf=0;
-var active=false,starting=false,runToken=0,suspendedSince=0,resumePending=false,overSince=0,over=false,lastBeep=-1e12,count=0;
-var level=0,measured=0,history=[],sampleAt=0,calibration=null,lastTick=0;
+var active=false,starting=false,runToken=0,suspendedSince=0,resumePending=false,overSince=0,over=false,lastBeep=-1e12,audioRetryUntil=0,count=0;
+var level=0,measured=0,history=[],sampleAt=0,calibration=null,lastTick=0,testingSound=false,requestInFlight=null,testSession=null;
 var ui={};["level","bar","marker","markerText","state","explain","start","stop","calibrate","capture","info","history","low","high","count","micLabel","test","reset"].forEach(function(k){ui[k]=document.getElementById(k)});
 function el(x){return document.getElementById(x)}
 function n(x){return Number(el(x).value)}
@@ -98,7 +98,45 @@ function say(msg){ui.info.textContent=msg}
 function state(msg,kind){ui.state.textContent=msg;ui.state.className="state "+(kind||"")}
 function safeGet(id){try{return localStorage.getItem("noise_"+id)}catch(e){return null}}
 function safeSet(id,v){try{localStorage.setItem("noise_"+id,v)}catch(e){}}
+function stopTracks(s){if(s){s.getTracks().forEach(function(t){try{t.onended=null;t.stop()}catch(err){}})}}
+function cancelPendingMicro(){
+if(requestInFlight){var r=requestInFlight;requestInFlight=null;r.cancel()}
+}
+function openMicro(token){
+return new Promise(function(resolve,reject){
+var done=false,clock=null;
+var request={cancel:function(){finish(new Error("Demande de micro annulée"))}};
+function finish(err,s){
+if(done){stopTracks(s);return}
+done=true;clearTimeout(clock);
+if(requestInFlight===request)requestInFlight=null;
+if(err)reject(err);else resolve(s)
+}
+requestInFlight=request;
+clock=setTimeout(function(){finish(new Error("Délai dépassé : aucune réponse du microphone (15 s)"))},15000);
+try{
+navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false})
+.then(function(s){if(token!==runToken){stopTracks(s);finish(new Error("Opération annulée"))}else finish(null,s)},function(err){finish(err)});
+}catch(err){finish(err)}
+})
+}
+function cleanupTest(session){
+if(!session)return;
+if(session.source)try{session.source.disconnect()}catch(err){}
+if(session.analyser)try{session.analyser.disconnect()}catch(err){}
+stopTracks(session.stream);
+session.stream=null;session.source=null;session.analyser=null;
+if(testSession===session)testSession=null
+}
+function migrateOldThreshold(){
+if(safeGet("scale")!=="rms75"){
+var old=safeGet("threshold"),v=Number(old);
+if(old!==null&&isFinite(v)){var converted=Math.max(10,Math.min(95,Math.round((v-5)*4/3)));safeSet("threshold",converted)}
+safeSet("scale","rms75")
+}
+}
 function sync(){["threshold","delay","cooldown","volume"].forEach(function(id){el(id+"Out").textContent=el(id).value+(id==="threshold"?" / 100":id==="volume"?" %":" s")});ui.marker.style.left=n("threshold")+"%";ui.markerText.textContent="Seuil : "+n("threshold");paint()}
+migrateOldThreshold();
 ids.forEach(function(id){var old=safeGet(id);if(old!==null){if(id==="sound"){if(["single","double","chime","loud"].indexOf(old)>=0)el(id).value=old}else{var input=el(id),v=Number(old);if(isFinite(v))input.value=clamp(v,Number(input.min),Number(input.max))}}el(id).addEventListener("input",function(){safeSet(id,el(id).value);sync()});el(id).addEventListener("change",function(){safeSet(id,el(id).value);sync()})});
 function paint(){
 var cv=ui.history,c=cv.getContext("2d"),w=cv.width,h=cv.height,t=n("threshold");
@@ -120,13 +158,16 @@ function stop(reason){
 runToken++;
 starting=false;active=false;
 cancelAnimationFrame(raf);raf=0;
-if(stream){stream.getTracks().forEach(function(t){t.onended=null;try{t.stop()}catch(err){}});stream=null}
+if(stream){stopTracks(stream);stream=null}
 if(source){try{source.disconnect()}catch(err){}source=null}
 if(analyser){try{analyser.disconnect()}catch(err){}analyser=null}
-releaseAudio();
-buffer=null;overSince=0;over=false;calibration=null;suspendedSince=0;resumePending=false;
-ui.start.disabled=testingSound===true;ui.stop.disabled=true;ui.calibrate.disabled=true;ui.capture.disabled=true;
-ui.test.disabled=testingSound===true;
+// Conserver l'AudioContext entre deux sessions : aucun conflit de fermeture asynchrone sur iOS.
+buffer=null;overSince=0;over=false;calibration=null;suspendedSince=0;resumePending=false;audioRetryUntil=0;
+cancelPendingMicro();
+if(testSession)cleanupTest(testSession);
+testingSound=false;
+ui.start.disabled=false;ui.stop.disabled=true;ui.calibrate.disabled=true;ui.capture.disabled=true;
+ui.test.disabled=false;
 ui.micLabel.textContent="Micro inactif";state(reason?"Surveillance interrompue":"Surveillance arrêtée",reason?"warn":"");
 ui.explain.textContent=reason||"Microphone coupé. Appuie sur Démarrer.";
 ui.level.textContent="—";ui.bar.style.width="0%";
@@ -156,7 +197,8 @@ suspendedSince=0;
 analyser.getFloatTimeDomainData(buffer);
 var sum=0;for(var i=0;i<buffer.length;i++){sum+=buffer[i]*buffer[i]}
 var rms=Math.sqrt(sum/buffer.length);
-var raw=clamp(20*Math.log10(Math.max(rms,.00001))+80,0,100);
+// Échelle relative 0–100 : de -75 dBFS à 0 dBFS (ce ne sont PAS des dB SPL).
+var raw=clamp((20*Math.log10(Math.max(rms,.0000001))+75)*100/75,0,100);
 level=level*.64+raw*.36;measured=Math.round(level);
 ui.level.textContent=measured;
 ui.bar.style.width=measured+"%";ui.bar.style.background=measured>=n("threshold")?"#ff8e86":"#5ee5bf";
@@ -175,6 +217,7 @@ say("Calibrage terminé. Niveau calme observé : "+base+"/100. Seuil proposé : 
 return
 }
 var threshold=n("threshold"),now=time;
+if(now<audioRetryUntil){over=false;overSince=0;state("Signal sonore indisponible","bad");ui.explain.textContent="Nouvel essai dans "+Math.ceil((audioRetryUntil-now)/1000)+" s.";return}
 if(now-lastBeep<n("cooldown")*1000){
 overSince=0;over=false;state("Repos après alerte","warn");
 ui.explain.textContent="Réarmement dans "+Math.ceil((n("cooldown")*1000-(now-lastBeep))/1000)+" s.";
@@ -186,9 +229,9 @@ if(over){
 var remaining=Math.max(0,Math.ceil(n("delay")-(now-overSince)/1000));
 state("Bruit excessif","bad");ui.explain.textContent="Bip dans "+remaining+" s si le bruit persiste.";
 if(now-overSince>=n("delay")*1000){
-var played=beep();lastBeep=now;over=false;overSince=0;count++;ui.count.textContent=count;
-state("🔔 Alerte déclenchée","bad");
-ui.explain.textContent=played?"Bip émis. Réarmement après la pause.":"Vérifie le son avec le bouton de test.";
+var played=beep();over=false;overSince=0;
+if(played){lastBeep=now;count++;ui.count.textContent=count;state("🔔 Signal généré","bad");ui.explain.textContent="Signal programmé. Le compteur ne confirme pas qu'il a été entendu."}
+else{audioRetryUntil=now+5000;state("Échec de l'alarme","bad");ui.explain.textContent="Le bip n'a pas été programmé. Vérifie le son ; nouvel essai dans 5 s."}
 }
 }else{state("Niveau acceptable","good");ui.explain.textContent="Le bruit reste sous le seuil de "+threshold+"/100."}
 }
@@ -201,11 +244,11 @@ ui.start.disabled=true;ui.test.disabled=true;ui.stop.disabled=false;
 state("Activation du microphone…","warn");ui.explain.textContent="Initialisation du micro. Tu peux appuyer sur Arrêter pour annuler.";
 var incoming=null,incomingSource=null,incomingAnalyser=null;
 try{
-releaseAudio();
+// Réutiliser la session sonore plutôt que rouvrir un contexte à chaque cycle.
 var c=audio();
 await c.resume();
 if(token!==runToken)return;
-incoming=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false});
+incoming=await openMicro(token);
 if(token!==runToken||document.hidden){incoming.getTracks().forEach(function(t){t.stop()});if(token===runToken)stop("Page masquée pendant le démarrage. Relance la surveillance.");return}
 incomingSource=c.createMediaStreamSource(incoming);
 incomingAnalyser=c.createAnalyser();incomingAnalyser.fftSize=2048;incomingSource.connect(incomingAnalyser);
@@ -213,7 +256,7 @@ if(c.state!=="running")await c.resume();
 if(token!==runToken){incoming.getTracks().forEach(function(t){t.stop()});incomingSource.disconnect();incomingAnalyser.disconnect();return}
 if(c.state!=="running")throw Error("Le système audio ne s'est pas réactivé");
 stream=incoming;source=incomingSource;analyser=incomingAnalyser;
-buffer=new Float32Array(analyser.fftSize);active=true;starting=false;level=0;measured=0;history=[];sampleAt=0;lastTick=0;suspendedSince=0;resumePending=false;overSince=0;over=false;lastBeep=-1e12;count=0;ui.count.textContent="0";
+buffer=new Float32Array(analyser.fftSize);active=true;starting=false;level=0;measured=0;history=[];sampleAt=0;lastTick=0;suspendedSince=0;resumePending=false;overSince=0;over=false;lastBeep=-1e12;audioRetryUntil=0;count=0;ui.count.textContent="0";
 ui.low.textContent="—";ui.high.textContent="—";ui.stop.disabled=false;ui.test.disabled=false;ui.calibrate.disabled=false;ui.capture.disabled=false;ui.micLabel.textContent="● Micro actif";
 stream.getAudioTracks().forEach(function(t){t.onended=function(){if(active)stop("Le microphone a été déconnecté. Relance la surveillance.")}});
 state("Surveillance active","good");say("Surveillance en cours. Laisse Safari au premier plan et l'écran allumé.");raf=requestAnimationFrame(tick)
@@ -230,57 +273,52 @@ ui.start.addEventListener("click",start);
 ui.stop.addEventListener("click",function(){stop("")});
 ui.calibrate.addEventListener("click",function(){if(!active)return;calibration={end:performance.now()+8000,values:[]};over=false;overSince=0;say("Calibrage sur 8 secondes : fais-le quand le volume de la salle est encore acceptable.")});
 ui.capture.addEventListener("click",function(){if(!active||calibration)return;var val=clamp(measured,10,95);el("threshold").value=val;safeSet("threshold",val);over=false;overSince=0;sync();say("Seuil réglé à "+val+"/100 d'après le bruit actuel. Ajuste-le si nécessaire.")});
-var testingSound=false;
 async function testRealSound(){
-  if(testingSound)return;
-  if(active){
-    var playing=beep();
-    say(playing?"Test joué pendant la surveillance. Compare à la distance réelle.":"Audio bloqué : vérifie le volume et le mode silencieux.");
-    return;
-  }
-  testingSound=true;
-  ui.test.disabled=true;
-  ui.start.disabled=true;
-  var temporaryStream=null,temporarySource=null,temporaryAnalyser=null,played=false;
-  try{
-    // Débloquer l'AudioContext dans le geste utilisateur, avant toute demande d'autorisation.
-    var context=audio();
-    await context.resume();
-    if(!window.isSecureContext||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw Error("microphone indisponible");
-    state("Test sonore avec micro…","warn");
-    say("Activation temporaire du microphone pour reproduire le volume réel de la surveillance…");
-    temporaryStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false});
-    temporarySource=context.createMediaStreamSource(temporaryStream);
-    temporaryAnalyser=context.createAnalyser();
-    temporaryAnalyser.fftSize=2048;
-    temporarySource.connect(temporaryAnalyser);
-    // Laisser à iOS un court instant pour changer sa session et sa sortie audio.
-    await new Promise(function(resolve){setTimeout(resolve,350)});
-    if(!temporaryStream.active)throw Error("microphone interrompu");
-    if(context.state!=="running")await context.resume();
-    played=beep();
-    say(played?"Test en cours avec microphone actif : ce volume est celui à comparer pendant la surveillance.":"Le son a été bloqué : vérifie le mode silencieux et le volume.");
-    // Garder la capture active jusqu'à la fin de l'alarme la plus longue.
-    await new Promise(function(resolve){setTimeout(resolve,1750)});
-  }catch(err){
-    played=beep();
-    say("Test sans microphone : "+err.message+". Le volume peut être différent de celui de la surveillance. Autorise le micro pour un test fidèle.");
-  }finally{
-    if(temporarySource)try{temporarySource.disconnect()}catch(err){}
-    if(temporaryAnalyser)try{temporaryAnalyser.disconnect()}catch(err){}
-    if(temporaryStream)temporaryStream.getTracks().forEach(function(track){track.stop()});
-    releaseAudio();
-    testingSound=false;
-    ui.test.disabled=false;
-    ui.start.disabled=false;
-    state("Surveillance arrêtée","");
-    ui.explain.textContent="Test terminé. Microphone coupé, surveillance non démarrée.";
-  }
+if(testingSound)return;
+if(active){
+var playing=beep();
+say(playing?"Signal de test programmé pendant la surveillance. Vérifie son volume réel.":"Son bloqué : vérifie le volume et le mode silencieux.");
+return
+}
+if(starting)return;
+testingSound=true;
+var token=++runToken;
+var session={stream:null,source:null,analyser:null};
+testSession=session;
+ui.test.disabled=true;ui.start.disabled=true;ui.stop.disabled=false;
+state("Test avec micro…","warn");ui.explain.textContent="Test en cours. Arrêter permet d'annuler.";
+try{
+var c=audio();
+await c.resume();
+if(token!==runToken)return;
+if(!window.isSecureContext||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw Error("Microphone indisponible en HTTPS.");
+session.stream=await openMicro(token);
+if(token!==runToken||document.hidden)return;
+session.source=c.createMediaStreamSource(session.stream);
+session.analyser=c.createAnalyser();session.analyser.fftSize=2048;
+session.source.connect(session.analyser);
+await new Promise(function(resolve){setTimeout(resolve,350)});
+if(token!==runToken||document.hidden)return;
+if(!session.stream.active)throw Error("Microphone interrompu");
+if(c.state!=="running")await c.resume();
+if(token!==runToken)return;
+if(!beep())throw Error("Le signal sonore n'a pas pu être généré");
+say("Test effectué avec le microphone ouvert, comme en surveillance.");
+await new Promise(function(resolve){setTimeout(resolve,1750)});
+}catch(err){
+if(token===runToken)say("Test non effectué : "+err.message+". Autorise le microphone ou réessaie.");
+}finally{
+cleanupTest(session);
+if(token===runToken){
+testingSound=false;ui.test.disabled=false;ui.start.disabled=false;ui.stop.disabled=true;
+state("Surveillance arrêtée","");ui.explain.textContent="Test terminé. Microphone désactivé.";
+}
+}
 }
 ui.test.addEventListener("click",testRealSound);
 ui.reset.addEventListener("click",function(){var values={threshold:55,delay:4,cooldown:60,volume:80,sound:"loud"};ids.forEach(function(k){el(k).value=values[k];safeSet(k,values[k])});sync();say("Réglages par défaut rétablis.")});
-document.addEventListener("visibilitychange",function(){if(document.hidden&&(active||starting))stop("Page masquée ou écran verrouillé. Relance la surveillance au retour.")});
-window.addEventListener("pagehide",function(){if(active||starting)stop("Page quittée. Relance la surveillance.")});
+document.addEventListener("visibilitychange",function(){if(document.hidden&&(active||starting||testingSound))stop("Page masquée ou écran verrouillé. Relance la surveillance au retour.")});
+window.addEventListener("pagehide",function(){if(active||starting||testingSound)stop("Page quittée. Relance la surveillance.");releaseAudio()});
 sync();paint();
 })();
 </script>
