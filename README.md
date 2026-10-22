@@ -19,6 +19,8 @@ Détecteur de bruit pour les tournois de bridge, pensé pour Safari sur un iPhon
 6. Laisser l'application au premier plan, l'écran déverrouillé et l'iPhone sur secteur.
 7. Optionnel : Safari → Partager → **Sur l'écran d'accueil**.
 
+**Fiabilité v3.2 :** les redémarrages recréent la session audio et relibèrent les ressources ; un démarrage annulé pendant la permission micro ne peut plus relancer la surveillance. L'affichage est explicitement un **indice relatif /100**, pas des décibels.
+
 **Important :** iOS peut interrompre la capture du micro quand l'écran est verrouillé ou quand l'application n'est plus visible. À la reprise, toucher **Démarrer**. Le niveau mesuré n'est pas un sonomètre étalonné.
 
 ## Publication
