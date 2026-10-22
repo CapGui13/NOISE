@@ -74,14 +74,14 @@ details{margin-top:8px}summary{font-weight:700;cursor:pointer;padding:5px 0}deta
 <div class="control"><div class="controlline"><label for="cooldown">Repos entre deux alertes</label><output id="cooldownOut">60 s</output></div><input id="cooldown" type="range" min="15" max="300" step="15" value="60"></div>
 <div class="control"><div class="controlline"><label for="volume">Intensité du bip</label><output id="volumeOut">80 %</output></div><input id="volume" type="range" min="10" max="100" step="10" value="80"></div>
 <div class="control"><label for="sound">Type d'alarme</label><select id="sound"><option value="loud">Salle bruyante (3 bips renforcés)</option><option value="double">Double bip classique</option><option value="single">Bip court</option><option value="chime">Carillon discret</option></select></div>
-<p class="help">Le mode « Salle bruyante » joue trois tonalités pendant environ 1,4 seconde. Il est plus reconnaissable, mais le volume maximal reste limité par le haut-parleur de l’iPhone. Teste-le d’abord à distance.</p><div class="actions" style="margin-top:19px"><button id="test" class="secondary">🔊 Tester le son</button><button id="reset" class="secondary">Réglages par défaut</button></div>
+<p class="help">Le mode « Salle bruyante » joue trois tonalités pendant environ 1,4 seconde. Il est plus reconnaissable, mais le volume maximal reste limité par le haut-parleur de l’iPhone. Le bouton de test ouvre brièvement le micro pour reproduire le volume en surveillance, puis le referme automatiquement.</p><div class="actions" style="margin-top:19px"><button id="test" class="secondary">🔊 Tester le son (avec micro)</button><button id="reset" class="secondary">Réglages par défaut</button></div>
 <div class="notice" id="info">Conseil : démarre, teste le son, puis calibre la salle au niveau de bruit acceptable.</div>
 </section>
 <section class="card"><details><summary>📱 Conseils pour l'ancien iPhone</summary>
 <ol><li>Ouvre l'application dans Safari en HTTPS et autorise le microphone.</li><li>Désactive le mode silencieux, monte le volume puis utilise « Tester le son ».</li><li>Dans Réglages → Luminosité et affichage → Verrouillage automatique, choisis « Jamais » pendant la séance si disponible.</li><li>Laisse l'iPhone branché, écran allumé et NOISE au premier plan. Évite de le poser juste à côté d'une seule table.</li><li>Si tu reviens dans NOISE après avoir verrouillé l'écran, appuie sur Démarrer pour relancer la surveillance.</li></ol>
 <p>La puissance du haut-parleur d'un ancien iPhone peut être insuffisante pour une grande salle. Une enceinte externe peut aider, mais il faut la tester : son propre bip peut être capté par le micro.</p>
 </details></section>
-<p class="footer">NOISE v3 · Fonctionnement local, sans serveur d'écoute ni stockage des sons. Les seuls éléments mémorisés sur cet appareil sont tes réglages. Les chiffres ne sont pas des dB SPL mesurés par un sonomètre calibré. Safari peut interrompre le microphone lorsque l'application n'est plus visible.</p>
+<p class="footer">NOISE v3.1 · Fonctionnement local, sans serveur d'écoute ni stockage des sons. Les seuls éléments mémorisés sur cet appareil sont tes réglages. Les chiffres ne sont pas des dB SPL mesurés par un sonomètre calibré. Safari peut interrompre le microphone lorsque l'application n'est plus visible.</p>
 </main>
 <script>
 (function(){
@@ -194,7 +194,53 @@ ui.start.addEventListener("click",start);
 ui.stop.addEventListener("click",function(){stop("")});
 ui.calibrate.addEventListener("click",function(){if(!active)return;calibration={end:performance.now()+8000,values:[]};over=false;overSince=0;say("Calibrage sur 8 secondes : fais-le quand le volume de la salle est encore acceptable.")});
 ui.capture.addEventListener("click",function(){if(!active||calibration)return;var val=clamp(measured,10,95);el("threshold").value=val;safeSet("threshold",val);over=false;overSince=0;sync();say("Seuil réglé à "+val+"/100 d'après le bruit actuel. Ajuste-le si nécessaire.")});
-ui.test.addEventListener("click",function(){var ok=beep();if(ok)say("Son de test joué. Si tu n'as rien entendu : désactive le mode silencieux et monte le volume de l'iPhone.")});
+var testingSound=false;
+async function testRealSound(){
+  if(testingSound)return;
+  if(active){
+    var playing=beep();
+    say(playing?"Test joué pendant la surveillance. Compare à la distance réelle.":"Audio bloqué : vérifie le volume et le mode silencieux.");
+    return;
+  }
+  testingSound=true;
+  ui.test.disabled=true;
+  ui.start.disabled=true;
+  var temporaryStream=null,temporarySource=null,temporaryAnalyser=null,played=false;
+  try{
+    // Débloquer l'AudioContext dans le geste utilisateur, avant toute demande d'autorisation.
+    var context=audio();
+    await context.resume();
+    if(!window.isSecureContext||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw Error("microphone indisponible");
+    state("Test sonore avec micro…","warn");
+    say("Activation temporaire du microphone pour reproduire le volume réel de la surveillance…");
+    temporaryStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false});
+    temporarySource=context.createMediaStreamSource(temporaryStream);
+    temporaryAnalyser=context.createAnalyser();
+    temporaryAnalyser.fftSize=2048;
+    temporarySource.connect(temporaryAnalyser);
+    // Laisser à iOS un court instant pour changer sa session et sa sortie audio.
+    await new Promise(function(resolve){setTimeout(resolve,350)});
+    if(!temporaryStream.active)throw Error("microphone interrompu");
+    if(context.state!=="running")await context.resume();
+    played=beep();
+    say(played?"Test en cours avec microphone actif : ce volume est celui à comparer pendant la surveillance.":"Le son a été bloqué : vérifie le mode silencieux et le volume.");
+    // Garder la capture active jusqu'à la fin de l'alarme la plus longue.
+    await new Promise(function(resolve){setTimeout(resolve,1750)});
+  }catch(err){
+    played=beep();
+    say("Test sans microphone : "+err.message+". Le volume peut être différent de celui de la surveillance. Autorise le micro pour un test fidèle.");
+  }finally{
+    if(temporarySource)try{temporarySource.disconnect()}catch(err){}
+    if(temporaryAnalyser)try{temporaryAnalyser.disconnect()}catch(err){}
+    if(temporaryStream)temporaryStream.getTracks().forEach(function(track){track.stop()});
+    testingSound=false;
+    ui.test.disabled=false;
+    ui.start.disabled=false;
+    state("Surveillance arrêtée","");
+    ui.explain.textContent="Test terminé. Microphone coupé, surveillance non démarrée.";
+  }
+}
+ui.test.addEventListener("click",testRealSound);
 ui.reset.addEventListener("click",function(){var values={threshold:55,delay:4,cooldown:60,volume:80,sound:"loud"};ids.forEach(function(k){el(k).value=values[k];safeSet(k,values[k])});sync();say("Réglages par défaut rétablis.")});
 document.addEventListener("visibilitychange",function(){if(document.hidden&&active)stop("Page masquée ou écran verrouillé. Relance la surveillance au retour.")});
 window.addEventListener("pagehide",function(){if(active)stop("Page quittée. Relance la surveillance.")});
