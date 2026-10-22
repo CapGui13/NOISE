@@ -90,7 +90,7 @@ var ids=["threshold","delay","cooldown","volume","sound"];
 var ctx=null,stream=null,source=null,analyser=null,buffer=null,raf=0;
 var active=false,overSince=0,over=false,lastBeep=-1e12,count=0;
 var level=0,measured=0,history=[],sampleAt=0,calibration=null,lastTick=0;
-var ui={};["level","bar","marker","markerText","state","explain","start","stop","calibrate","capture","info","history","low","high","count","micLabel"].forEach(function(k){ui[k]=document.getElementById(k)});
+var ui={};["level","bar","marker","markerText","state","explain","start","stop","calibrate","capture","info","history","low","high","count","micLabel","test","reset"].forEach(function(k){ui[k]=document.getElementById(k)});
 function el(x){return document.getElementById(x)}
 function n(x){return Number(el(x).value)}
 function clamp(x,lo,hi){return Math.max(lo,Math.min(hi,x))}
@@ -168,7 +168,7 @@ state("Bruit excessif","bad");ui.explain.textContent="Bip dans "+remaining+" s s
 if(now-overSince>=n("delay")*1000){
 var played=beep();lastBeep=now;over=false;overSince=0;count++;ui.count.textContent=count;
 state("🔔 Alerte déclenchée","bad");
-ui.explain.textContent=played?"Double vérification : le haut-parleur doit être audible.":"Vérifie le son avec le bouton de test.";
+ui.explain.textContent=played?"Bip émis. Réarmement après la pause.":"Vérifie le son avec le bouton de test.";
 }
 }else{state("Niveau acceptable","good");ui.explain.textContent="Le bruit reste sous le seuil de "+threshold+"/100."}
 }
