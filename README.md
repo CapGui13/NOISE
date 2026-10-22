@@ -7,7 +7,7 @@ Détecteur de bruit pour les tournois de bridge, pensé pour Safari sur un iPhon
 - Niveau sonore relatif 0 à 100 (pas des dB SPL calibrés), jauge et courbe sur 60 secondes.
 - Niveau faible, pic récent et nombre d'alertes.
 - Seuil ajustable, calibrage au bruit acceptable pendant 8 secondes, ou capture du bruit actuel.
-- Bip court, double bip ou carillon, intensité réglable, temporisation avant alerte et repos entre alertes.
+- Mode « Salle bruyante » (trois notes sur environ 1,4 s), double bip, bip court ou carillon. Intensité réglable, temporisation et repos entre alertes.
 - Réglages conservés localement. Aucun son n'est enregistré ou envoyé.
 
 ## Utilisation sur iPhone
