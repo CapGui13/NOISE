@@ -13,7 +13,22 @@ Détecteur de bruit pour les tournois de bridge, pensé pour Safari sur un iPhon
 - **dB(A) estimés en option (V4.2)** : case « Afficher les dB(A) estimés » activée par défaut, désactivable et mémorisée sur chaque appareil. Affichage purement informatif, aucune incidence sur le seuil et les alertes en indice /100.
 - Conversion expérimentale issue de trois paires de moyennes sur 20 secondes : (39,0 ; 62,4), (49,8 ; 71,6), (58,2 ; 80,7). Régression : dB(A) estimés ≈ 25,095 + 0,9484 × indice NOISE. Avertissement quand la valeur sort de la plage testée 39–58,2/100.
 - La section « Comparer NOISE avec NIOSH » présente également le niveau estimé sur les mêmes 20 secondes pour le comparer au LAeq NIOSH. **Cela n'ajoute pas de pondération A** au signal du microphone ; la valeur en direct est une approximation instantanée et ne doit pas être interprétée comme un LAeq mesuré.
+- **Moteur expérimental V5** : branche secondaire du microphone, avec filtre temporel de pondération A (trois sections biquad) et intégration d'énergie sur la totalité de 20 secondes, dans un `AudioWorklet` (sans enregistrement ni envoi des échantillons). La branche historique de NOISE reste inchangée et pilote seule les alertes.
+- **Repli iPhone/Safari** : le nouveau moteur est facultatif et son échec de chargement ou de traitement ne coupe ni le micro ni la surveillance historique.
+- **Étalonnage du moteur A** : les nouvelles mesures NIOSH sur 20 s peuvent mémoriser aussi une valeur numérique A en **dBFS(A)**. Après au moins trois nouveaux couples valides, l'interface affiche des **dB(A) estimés** par correction médiane propre au microphone. Les mesures anciennes sans dBFS(A) ne peuvent pas étalonner ce nouveau moteur.
+- **Attention** : la pondération A ne transforme pas les dBFS(A) en niveau acoustique. Un iPhone et son navigateur ne constituent pas un sonomètre conforme IEC ; il faut tester le résultat avec du bruit de conversation et différents niveaux sonores.
 - Réglages conservés localement. Aucun son n'est enregistré ni envoyé.
+
+## Tester la nouvelle mesure pondérée A — V5
+1. Ouvrir NOISE sur l'iPhone habituel, puis appuyer sur **Démarrer**.
+2. Vérifier que la section **Mesure pondérée A · V5** affiche « Filtre A actif ». Si elle affiche « indisponible », les alertes historiques continuent de fonctionner.
+3. Avec un deuxième iPhone équipé de NIOSH Sound Level Meter, mesurer trois ambiances sonores différentes avec la même séquence de **20 secondes**.
+4. Dans la section NOISE / NIOSH, appuyer sur **Mesurer 20 s**. Une fois la mesure achevée, saisir le LAeq de NIOSH et enregistrer. Chaque couple doit inclure la valeur « Pondération A (20 s) » ; sinon le moteur A n'était pas prêt ou le relevé a été interrompu.
+5. Après trois couples comparables, NOISE propose une estimation des dB(A) dérivée de la médiane des différences NIOSH − dBFS(A), sur le téléphone utilisé. Vérifier la dispersion et comparer aux voix humaines ; cela ne constitue pas une calibration professionnelle.
+
+La conversion historique (basée sur trois paires avant V5) est conservée en affichage indépendant. Les seuils de déclenchement d'alarme restent exclusivement sur l'indice relatif /100.
+
+**Code utilisé comme référence** : les fréquences des pôles de la pondération A suivent le prototype analogique de l'IEC 61672. L'implémentation locale par sections numériques est indépendante, inspirée de la bibliothèque MIT [audiojs/weighting-a](https://github.com/audiojs/weighting/tree/main/packages/weighting-a). Le filtre est testé à 44,1 et 48 kHz, mais NOISE n'est **pas** un sonomètre certifié ni conforme à l'intégralité des exigences IEC.
 
 ## Comparer avec NIOSH (20 secondes)
 1. Place les deux iPhone côte à côte, micros dégagés. Lance NOISE sur l'ancien iPhone en appuyant sur **Démarrer**.
@@ -38,7 +53,7 @@ Important : la moyenne énergétique de NOISE porte sur son signal brut *non pon
 - « Arrêter » annule aussi le test sonore, y compris pendant une demande d'autorisation micro. Un délai d'attente de 15 secondes évite de bloquer toute l'interface si Safari ne répond pas.
 - La mesure est un **indice relatif 0–100**, et NON des décibels acoustiques (dB SPL). L'ancienne échelle plafonnait artificiellement à environ 80 ; le seuil conservé est converti automatiquement lors du premier lancement V4 pour maintenir un déclenchement voisin.
 - Une alarme dont la génération échoue n'est plus comptabilisée ; un nouvel essai est autorisé 5 secondes après l'échec.
-- Seize tests de régression s'exécutent automatiquement via GitHub Actions (`node --test tests/noise.test.cjs`).
+- Vingt-quatre tests de régression (moteur historique + pondération A) s'exécutent automatiquement via GitHub Actions (`node --test tests/noise.test.cjs tests/a-weighting.test.cjs`).
 
 **Important :** iOS peut interrompre la capture du micro quand l'écran est verrouillé ou quand l'application n'est plus visible. À la reprise, toucher **Démarrer**. Le niveau mesuré n'est pas un sonomètre étalonné.
 
