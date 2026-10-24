@@ -42,6 +42,12 @@ function simulator(options = {}) {
     data.contexts++;
     let audioState = 'running';
     return {
+      audioWorklet: options.worklet ? {
+        addModule(url) {
+          data.workletModuleUrl = url;
+          return options.failWorklet ? Promise.reject(new Error('simulated AudioWorklet load failure')) : Promise.resolve();
+        }
+      } : undefined,
       get state() { return audioState; },
       get currentTime() { return data.time / 1000; },
       destination: {},
@@ -78,6 +84,22 @@ function simulator(options = {}) {
     }
   };
   const window = { AudioContext, isSecureContext: true, addEventListener() {} };
+  if (options.worklet) {
+    window.AudioWorkletNode = class FakeAudioWorkletNode {
+      constructor(ctx, name, config) {
+        assert.equal(name, 'noise-a-meter-v5');
+        data.weightNode = this;
+        this.messages = [];
+        this.port = {
+          onmessage: null, messages: this.messages,
+          postMessage(message) { data.weightNode.messages.push(message); },
+          close() {}
+        };
+      }
+      connect() {}
+      disconnect() {}
+    };
+  }
   new Function(
     'document', 'window', 'navigator', 'localStorage',
     'requestAnimationFrame', 'cancelAnimationFrame', 'performance', 'setTimeout', 'clearTimeout', code
@@ -96,6 +118,10 @@ function simulator(options = {}) {
   data.frame = ms => { data.time = ms; if (frame) frame(ms); };
   data.hide = () => { hidden = true; data.events.visibilitychange(); };
   data.makeStream = makeStream;
+  data.emitWeighted = message => {
+    assert.ok(data.weightNode && data.weightNode.port.onmessage, 'weighted engine must be running');
+    data.weightNode.port.onmessage({ data: message });
+  };
   data.fireTimeouts = duration => {
     for (const [id, timer] of [...data.timers]) {
       if (timer.ms <= duration) { data.timers.delete(id); timer.fn(); }
@@ -325,4 +351,68 @@ test('estimate warns when the live noise index is outside tested calibration ran
   assert.ok(Number(app.element('level').textContent) > 58.2);
   assert.match(app.element('estimatedNote').textContent, /extrapolation très incertaine/);
   app.click('stop');
+});
+
+
+test('AudioWorklet A motor starts in parallel without changing the alarm threshold', async () => {
+  const app = simulator({ worklet: true });
+  await app.click('start');
+  await Promise.resolve(); await Promise.resolve();
+  assert.ok(app.weightNode, 'V5 secondary engine should be connected');
+  assert.match(app.workletModuleUrl, /a-weighting-worklet/);
+  app.emitWeighted({ type: 'level', dbfsA: -33.5 });
+  assert.equal(app.element('weightedLevel').textContent, '-33.5');
+  assert.equal(app.element('weightedEstimate').textContent, '—');
+  assert.equal(app.element('threshold').value, '55');
+  app.click('stop');
+  assert.equal(app.streams, app.stops);
+  assert.equal(app.element('weightedLevel').textContent, '—');
+});
+
+test('three A-weighted NIOSH reference pairs unlock per-device dB(A) estimates', async () => {
+  const app = simulator({ worklet: true, rms: 0.12 });
+  await app.click('start');
+  await Promise.resolve(); await Promise.resolve();
+  for (let i = 0; i < 3; i++) {
+    app.click('measureStart');
+    const begin = app.weightNode.messages.filter(m => m.type === 'beginMeasurement').at(-1);
+    assert.ok(begin, 'A-weighted 20s computation should start');
+    for (let step = 1; step <= 145; step++) app.frame(app.time + 140);
+    assert.equal(app.element('measureCancel').disabled, true);
+    app.element('nioshValue').value = String(54 + i * 8);
+    // First save the legacy reference, then simulate the final weighted worklet result:
+    app.click('saveReference');
+    app.emitWeighted({ type: 'measurement', id: begin.id, dbfsA: -42 + i * 8 });
+    const rows = JSON.parse(app.storage.noise_referenceRows);
+    assert.equal(rows[i].weightedDbfsA, -42 + i * 8);
+  }
+  app.emitWeighted({ type: 'level', dbfsA: -30 });
+  assert.equal(app.element('weightedEstimate').textContent, 66);
+  assert.match(app.element('weightedCalibration').textContent, /3\/3/);
+  assert.equal(app.element('threshold').value, '55');
+  app.click('stop');
+});
+
+test('unavailable AudioWorklet does not interrupt the original microphone detection', async () => {
+  const app = simulator({ worklet: true, failWorklet: true });
+  await app.click('start');
+  await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+  assert.equal(app.element('micLabel').textContent, '● Micro actif');
+  assert.match(app.element('weightedStatus').textContent, /Ancien moteur conservé/);
+  for (let step = 1; step <= 30; step++) app.frame(step * 140);
+  assert.notEqual(app.element('level').textContent, '—');
+  app.click('stop');
+  assert.equal(app.streams, app.stops);
+});
+
+test('A motor processor crash disconnects only the experimental engine', async () => {
+  const app = simulator({ worklet: true });
+  await app.click('start');
+  await Promise.resolve(); await Promise.resolve();
+  assert.ok(app.weightNode.onprocessorerror);
+  app.weightNode.onprocessorerror();
+  assert.match(app.element('weightedStatus').textContent, /Ancien moteur conservé/);
+  assert.equal(app.element('micLabel').textContent, '● Micro actif');
+  app.click('stop');
+  assert.equal(app.streams, app.stops);
 });
