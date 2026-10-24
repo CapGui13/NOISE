@@ -10,6 +10,9 @@ Détecteur de bruit pour les tournois de bridge, pensé pour Safari sur un iPhon
 - Mode « Salle bruyante » (trois notes sur environ 1,4 s), double bip, bip court ou carillon. Intensité réglable, temporisation et repos entre alertes.
 - **Comparaison NIOSH** : lancement d'une mesure NOISE de 20 secondes en moyenne énergétique (indice relatif /100) et suspension des alertes le temps du relevé. Résultat figé, puis saisie du LAeq NIOSH enregistré sur la même période.
 - Jusqu'à 12 paires NOISE / NIOSH mémorisées localement, effaçables séparément et copiables pour les partager dans une conversation. Les cinq observations instantanées précédentes ne sont pas considérées comme des calibrations.
+- **dB(A) estimés en option (V4.2)** : case « Afficher les dB(A) estimés » activée par défaut, désactivable et mémorisée sur chaque appareil. Affichage purement informatif, aucune incidence sur le seuil et les alertes en indice /100.
+- Conversion expérimentale issue de trois paires de moyennes sur 20 secondes : (39,0 ; 62,4), (49,8 ; 71,6), (58,2 ; 80,7). Régression : dB(A) estimés ≈ 25,095 + 0,9484 × indice NOISE. Avertissement quand la valeur sort de la plage testée 39–58,2/100.
+- La section « Comparer NOISE avec NIOSH » présente également le niveau estimé sur les mêmes 20 secondes pour le comparer au LAeq NIOSH. **Cela n'ajoute pas de pondération A** au signal du microphone ; la valeur en direct est une approximation instantanée et ne doit pas être interprétée comme un LAeq mesuré.
 - Réglages conservés localement. Aucun son n'est enregistré ni envoyé.
 
 ## Comparer avec NIOSH (20 secondes)
@@ -35,7 +38,7 @@ Important : la moyenne énergétique de NOISE porte sur son signal brut *non pon
 - « Arrêter » annule aussi le test sonore, y compris pendant une demande d'autorisation micro. Un délai d'attente de 15 secondes évite de bloquer toute l'interface si Safari ne répond pas.
 - La mesure est un **indice relatif 0–100**, et NON des décibels acoustiques (dB SPL). L'ancienne échelle plafonnait artificiellement à environ 80 ; le seuil conservé est converti automatiquement lors du premier lancement V4 pour maintenir un déclenchement voisin.
 - Une alarme dont la génération échoue n'est plus comptabilisée ; un nouvel essai est autorisé 5 secondes après l'échec.
-- Treize tests de régression s'exécutent automatiquement via GitHub Actions (`node --test tests/noise.test.cjs`).
+- Seize tests de régression s'exécutent automatiquement via GitHub Actions (`node --test tests/noise.test.cjs`).
 
 **Important :** iOS peut interrompre la capture du micro quand l'écran est verrouillé ou quand l'application n'est plus visible. À la reprise, toucher **Démarrer**. Le niveau mesuré n'est pas un sonomètre étalonné.
 
