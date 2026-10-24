@@ -44,6 +44,11 @@ select{width:100%;background:#2a4258;color:white;border:1px solid #60748a;border
 .help{font-size:12px;line-height:1.55;color:var(--muted);margin:10px 0 0}
 .notice{background:#353344;border:1px solid #665c67;color:#ffe0ae;border-radius:12px;padding:12px;font-size:13px;line-height:1.55;margin-top:16px}
 details{margin-top:8px}summary{font-weight:700;cursor:pointer;padding:5px 0}details p,details li{font-size:14px;color:#c4d3e2;line-height:1.6}details ol{padding-left:24px}
+.reference-value{font-size:48px;line-height:1.2;font-weight:800;font-variant-numeric:tabular-nums;text-align:center;margin:11px 0 6px}
+.reference-meter{background:#334960;height:12px;border-radius:99px;overflow:hidden;margin:9px 0}
+.reference-meter>div{height:100%;background:var(--good);width:0%;transition:width .15s linear}
+.reference-input{width:100%;margin-top:7px;border:1px solid #60748a;background:#2a4258;border-radius:11px;color:#fff;padding:12px;font:inherit;font-size:18px}
+.reference-history{margin-top:13px;padding:10px 12px;background:#102235;border-radius:11px;color:#c4d3e2;white-space:pre-line;font-size:13px;line-height:1.75;font-variant-numeric:tabular-nums}
 .footer{font-size:12px;line-height:1.6;color:#97afc3;margin-top:15px}
 @media(max-width:360px){.card{padding:16px}.privacy{font-size:10px}h1{font-size:29px}.actions button{font-size:14px;padding:10px}.big{font-size:65px}}
 </style>
@@ -65,6 +70,18 @@ details{margin-top:8px}summary{font-weight:700;cursor:pointer;padding:5px 0}deta
 <canvas id="history" width="600" height="144" aria-label="Historique du bruit et seuil"></canvas>
 <p class="chartnote">Courbe turquoise : bruit mesuré. Ligne pointillée : seuil choisi. L'échelle 0–100 est <strong>relative</strong>, pas en décibels acoustiques.</p>
 </section>
+<section class="card" id="referenceSection">
+<div class="head"><h2>Comparer NOISE avec NIOSH</h2><span class="mini">Mesure sur 20 s</span></div>
+<p class="help">Place les deux iPhone côte à côte, micros dégagés. Lance une mesure de 20 s dans NIOSH (LAeq, pondération A), puis celle-ci presque simultanément. Garde le même son et le même volume pendant les deux mesures.</p>
+<div class="actions" style="margin-top:15px"><button id="measureStart" class="secondary" disabled>⏱ Mesurer 20 s</button><button id="measureCancel" class="secondary" disabled>Annuler la mesure</button></div>
+<div class="reference-value"><span id="measureValue">—</span><span class="suffix">/ 100</span></div>
+<div class="reference-meter" aria-label="Progression de la mesure"><div id="measureProgress"></div></div>
+<p class="help" id="measureStatus" role="status" aria-live="polite">Appuie d'abord sur Démarrer pour activer le microphone.</p>
+<div class="control"><label for="nioshValue">LAeq de NIOSH pendant ces mêmes 20 secondes (dB(A))</label><input id="nioshValue" class="reference-input" type="number" inputmode="decimal" min="30" max="120" step="0.1" placeholder="Ex. 68,5" disabled></div>
+<div class="actions" style="margin-top:10px"><button id="saveReference" class="secondary" disabled>Enregistrer ce relevé</button><button id="clearReferences" class="secondary">Effacer les relevés</button></div>
+<div id="referenceHistory" class="reference-history" aria-live="polite">Aucune mesure enregistrée.</div>
+<p class="help">Pendant ces 20 secondes, NOISE suspend les bips pour ne pas fausser le relevé. Le résultat est une <strong>moyenne énergétique sur l'échelle relative</strong>, pas des décibels acoustiques. Les couples NOISE / NIOSH restent uniquement sur cet appareil.</p>
+</section>
 <section class="card">
 <h2 style="margin:0">Régler le déclenchement</h2>
 <div class="control"><div class="controlline"><label for="threshold">Seuil de bruit</label><output id="thresholdOut">55 / 100</output></div><input id="threshold" type="range" min="10" max="95" step="1" value="55"></div>
@@ -81,7 +98,7 @@ details{margin-top:8px}summary{font-weight:700;cursor:pointer;padding:5px 0}deta
 <ol><li>Ouvre l'application dans Safari en HTTPS et autorise le microphone.</li><li>Désactive le mode silencieux, monte le volume puis utilise « Tester le son ».</li><li>Dans Réglages → Luminosité et affichage → Verrouillage automatique, choisis « Jamais » pendant la séance si disponible.</li><li>Laisse l'iPhone branché, écran allumé et NOISE au premier plan. Évite de le poser juste à côté d'une seule table.</li><li>Si tu reviens dans NOISE après avoir verrouillé l'écran, appuie sur Démarrer pour relancer la surveillance.</li></ol>
 <p>La puissance du haut-parleur d'un ancien iPhone peut être insuffisante pour une grande salle. Une enceinte externe peut aider, mais il faut la tester : son propre bip peut être capté par le micro.</p>
 </details></section>
-<p class="footer">NOISE v4.0 · Fonctionnement local, sans serveur d'écoute ni stockage des sons. Les seuls éléments mémorisés sur cet appareil sont tes réglages. Les chiffres ne sont pas des dB SPL mesurés par un sonomètre calibré. Safari peut interrompre le microphone lorsque l'application n'est plus visible.</p>
+<p class="footer">NOISE v4.1 · Fonctionnement local, sans serveur d'écoute ni stockage des sons. Les réglages et les relevés NOISE / NIOSH sont conservés sur cet appareil. Les chiffres ne sont pas des dB SPL mesurés par un sonomètre calibré. Safari peut interrompre le microphone lorsque l'application n'est plus visible.</p>
 </main>
 <script>
 (function(){
@@ -89,8 +106,8 @@ details{margin-top:8px}summary{font-weight:700;cursor:pointer;padding:5px 0}deta
 var ids=["threshold","delay","cooldown","volume","sound"];
 var ctx=null,stream=null,source=null,analyser=null,buffer=null,raf=0;
 var active=false,starting=false,runToken=0,suspendedSince=0,resumePending=false,overSince=0,over=false,lastBeep=-1e12,audioRetryUntil=0,count=0;
-var level=0,measured=0,history=[],sampleAt=0,calibration=null,lastTick=0,testingSound=false,requestInFlight=null,testSession=null;
-var ui={};["level","bar","marker","markerText","state","explain","start","stop","calibrate","capture","info","history","low","high","count","micLabel","test","reset"].forEach(function(k){ui[k]=document.getElementById(k)});
+var level=0,measured=0,history=[],sampleAt=0,calibration=null,lastTick=0,testingSound=false,requestInFlight=null,testSession=null,noiseMeasure=null,lastNoiseMeasure=null,referenceRows=[];
+var ui={};["level","bar","marker","markerText","state","explain","start","stop","calibrate","capture","info","history","low","high","count","micLabel","test","reset","measureStart","measureCancel","measureValue","measureProgress","measureStatus","nioshValue","saveReference","clearReferences","referenceHistory"].forEach(function(k){ui[k]=document.getElementById(k)});
 function el(x){return document.getElementById(x)}
 function n(x){return Number(el(x).value)}
 function clamp(x,lo,hi){return Math.max(lo,Math.min(hi,x))}
@@ -120,6 +137,96 @@ navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppress
 }catch(err){finish(err)}
 })
 }
+function restoreReferenceRows(){
+try{
+var parsed=JSON.parse(safeGet("referenceRows")||"[]");
+if(Array.isArray(parsed))referenceRows=parsed.filter(function(row){return row&&Number.isFinite(row.noise)&&Number.isFinite(row.niosh)&&row.noise>=0&&row.noise<=100&&row.niosh>=30&&row.niosh<=120}).slice(-12)
+}catch(err){referenceRows=[]}
+renderReferenceRows()
+}
+function renderReferenceRows(){
+if(!referenceRows.length){ui.referenceHistory.textContent="Aucune mesure enregistrée.";return}
+ui.referenceHistory.textContent=referenceRows.map(function(row,i){return (i+1)+". NOISE "+row.noise.toFixed(1)+"/100 — NIOSH "+row.niosh.toFixed(1)+" dB(A)"}).join("\n")
+}
+function saveReferenceRows(){safeSet("referenceRows",JSON.stringify(referenceRows));renderReferenceRows()}
+function cancelNoiseMeasure(message){
+if(!noiseMeasure)return;
+noiseMeasure=null;
+ui.measureCancel.disabled=true;
+ui.measureStart.disabled=!active;
+ui.measureProgress.style.width="0%";
+ui.measureValue.textContent="—";
+ui.measureStatus.textContent=message||"Mesure annulée.";
+ui.nioshValue.disabled=true;
+ui.saveReference.disabled=true;
+lastNoiseMeasure=null;
+over=false;overSince=0;
+if(active){ui.calibrate.disabled=false;ui.capture.disabled=false;ui.test.disabled=false}
+}
+function relativeIndex(power){
+return clamp((10*Math.log10(Math.max(power,.00000000000001))+75)*100/75,0,100)
+}
+function finishNoiseMeasure(){
+var m=noiseMeasure;
+if(!m)return;
+noiseMeasure=null;
+ui.measureCancel.disabled=true;ui.measureStart.disabled=!active;
+ui.calibrate.disabled=!active;ui.capture.disabled=!active;ui.test.disabled=!active;
+over=false;overSince=0;
+if(m.samples<65){
+lastNoiseMeasure=null;
+ui.measureValue.textContent="—";
+ui.measureStatus.textContent="Mesure incomplète : trop peu d'échantillons. Laisse NOISE visible et recommence.";
+ui.nioshValue.disabled=true;ui.saveReference.disabled=true;
+return
+}
+lastNoiseMeasure=Math.round(relativeIndex(m.power/m.samples)*10)/10;
+ui.measureValue.textContent=lastNoiseMeasure.toFixed(1);
+ui.measureProgress.style.width="100%";
+ui.measureStatus.textContent="Mesure terminée et figée ("+m.samples+" échantillons). Relève maintenant le LAeq de NIOSH pour les mêmes 20 s.";
+ui.nioshValue.disabled=false;ui.saveReference.disabled=false;
+}
+function updateNoiseMeasure(time,power){
+var m=noiseMeasure;
+if(!m)return false;
+m.power+=power;m.samples++;
+var elapsed=clamp(time-m.start,0,20000);
+ui.measureProgress.style.width=(elapsed/200)+"%";
+ui.measureValue.textContent=(Math.round(relativeIndex(m.power/m.samples)*10)/10).toFixed(1);
+ui.measureStatus.textContent="Mesure en cours : "+Math.max(0,Math.ceil((20000-elapsed)/1000))+" s restantes. Bips suspendus.";
+if(elapsed>=20000)finishNoiseMeasure();
+return true
+}
+ui.measureStart.addEventListener("click",function(){
+if(!active||noiseMeasure||calibration)return;
+lastNoiseMeasure=null;
+noiseMeasure={start:performance.now(),samples:0,power:0};
+ui.measureValue.textContent="—";ui.measureProgress.style.width="0%";
+ui.measureStatus.textContent="Mesure en cours : 20 s restantes. Bips suspendus.";
+ui.measureStart.disabled=true;ui.measureCancel.disabled=false;
+ui.nioshValue.value="";ui.nioshValue.disabled=true;ui.saveReference.disabled=true;
+ui.calibrate.disabled=true;ui.capture.disabled=true;ui.test.disabled=true;
+over=false;overSince=0;
+});
+ui.measureCancel.addEventListener("click",function(){cancelNoiseMeasure("Mesure annulée. Tu peux recommencer.")});
+ui.saveReference.addEventListener("click",function(){
+if(lastNoiseMeasure===null||noiseMeasure)return;
+var niosh=Number(String(ui.nioshValue.value).replace(",","."));
+if(!String(ui.nioshValue.value).trim()||!Number.isFinite(niosh)||niosh<30||niosh>120){
+ui.measureStatus.textContent="Saisis un LAeq NIOSH valide entre 30 et 120 dB(A).";return
+}
+referenceRows.push({noise:lastNoiseMeasure,niosh:Math.round(niosh*10)/10});
+referenceRows=referenceRows.slice(-12);
+saveReferenceRows();
+lastNoiseMeasure=null;
+ui.saveReference.disabled=true;ui.nioshValue.disabled=true;
+ui.measureStatus.textContent="Relevé enregistré sur cet appareil. Tu peux recommencer à un autre volume.";
+});
+ui.clearReferences.addEventListener("click",function(){
+referenceRows=[];saveReferenceRows();
+ui.measureStatus.textContent="Relevés effacés sur cet appareil. Les réglages de surveillance sont conservés."
+});
+restoreReferenceRows();
 function cleanupTest(session){
 if(!session)return;
 if(session.source)try{session.source.disconnect()}catch(err){}
@@ -165,9 +272,11 @@ if(analyser){try{analyser.disconnect()}catch(err){}analyser=null}
 buffer=null;overSince=0;over=false;calibration=null;suspendedSince=0;resumePending=false;audioRetryUntil=0;
 cancelPendingMicro();
 if(testSession)cleanupTest(testSession);
+if(noiseMeasure)cancelNoiseMeasure("Mesure interrompue : surveillance arrêtée.");
 testingSound=false;
 ui.start.disabled=false;ui.stop.disabled=true;ui.calibrate.disabled=true;ui.capture.disabled=true;
 ui.test.disabled=false;
+ui.measureStart.disabled=true;ui.measureCancel.disabled=true;
 ui.micLabel.textContent="Micro inactif";state(reason?"Surveillance interrompue":"Surveillance arrêtée",reason?"warn":"");
 ui.explain.textContent=reason||"Microphone coupé. Appuie sur Démarrer.";
 ui.level.textContent="—";ui.bar.style.width="0%";
@@ -196,13 +305,15 @@ return
 suspendedSince=0;
 analyser.getFloatTimeDomainData(buffer);
 var sum=0;for(var i=0;i<buffer.length;i++){sum+=buffer[i]*buffer[i]}
-var rms=Math.sqrt(sum/buffer.length);
+var power=sum/buffer.length;
+var rms=Math.sqrt(power);
 // Échelle relative 0–100 : de -75 dBFS à 0 dBFS (ce ne sont PAS des dB SPL).
 var raw=clamp((20*Math.log10(Math.max(rms,.0000001))+75)*100/75,0,100);
 level=level*.64+raw*.36;measured=Math.round(level);
 ui.level.textContent=measured;
 ui.bar.style.width=measured+"%";ui.bar.style.background=measured>=n("threshold")?"#ff8e86":"#5ee5bf";
 if(time-sampleAt>=500){history.push(measured);if(history.length>120)history.shift();sampleAt=time;updateStats();paint()}
+if(noiseMeasure){updateNoiseMeasure(time,power);over=false;overSince=0;state("Mesure de référence","warn");ui.explain.textContent="Bips suspendus pendant la mesure de 20 s.";return}
 if(calibration){
 calibration.values.push(measured);
 var remain=Math.max(0,Math.ceil((calibration.end-time)/1000));
@@ -257,7 +368,7 @@ if(token!==runToken){incoming.getTracks().forEach(function(t){t.stop()});incomin
 if(c.state!=="running")throw Error("Le système audio ne s'est pas réactivé");
 stream=incoming;source=incomingSource;analyser=incomingAnalyser;
 buffer=new Float32Array(analyser.fftSize);active=true;starting=false;level=0;measured=0;history=[];sampleAt=0;lastTick=0;suspendedSince=0;resumePending=false;overSince=0;over=false;lastBeep=-1e12;audioRetryUntil=0;count=0;ui.count.textContent="0";
-ui.low.textContent="—";ui.high.textContent="—";ui.stop.disabled=false;ui.test.disabled=false;ui.calibrate.disabled=false;ui.capture.disabled=false;ui.micLabel.textContent="● Micro actif";
+ui.low.textContent="—";ui.high.textContent="—";ui.stop.disabled=false;ui.test.disabled=false;ui.calibrate.disabled=false;ui.capture.disabled=false;ui.measureStart.disabled=false;ui.micLabel.textContent="● Micro actif";
 stream.getAudioTracks().forEach(function(t){t.onended=function(){if(active)stop("Le microphone a été déconnecté. Relance la surveillance.")}});
 state("Surveillance active","good");say("Surveillance en cours. Laisse Safari au premier plan et l'écran allumé.");raf=requestAnimationFrame(tick)
 }catch(err){
@@ -271,10 +382,10 @@ say("Échec de la mise en route : "+err.message+". Vérifie l'autorisation du mi
 }
 ui.start.addEventListener("click",start);
 ui.stop.addEventListener("click",function(){stop("")});
-ui.calibrate.addEventListener("click",function(){if(!active)return;calibration={end:performance.now()+8000,values:[]};over=false;overSince=0;say("Calibrage sur 8 secondes : fais-le quand le volume de la salle est encore acceptable.")});
-ui.capture.addEventListener("click",function(){if(!active||calibration)return;var val=clamp(measured,10,95);el("threshold").value=val;safeSet("threshold",val);over=false;overSince=0;sync();say("Seuil réglé à "+val+"/100 d'après le bruit actuel. Ajuste-le si nécessaire.")});
+ui.calibrate.addEventListener("click",function(){if(!active||noiseMeasure)return;calibration={end:performance.now()+8000,values:[]};over=false;overSince=0;say("Calibrage sur 8 secondes : fais-le quand le volume de la salle est encore acceptable.")});
+ui.capture.addEventListener("click",function(){if(!active||calibration||noiseMeasure)return;var val=clamp(measured,10,95);el("threshold").value=val;safeSet("threshold",val);over=false;overSince=0;sync();say("Seuil réglé à "+val+"/100 d'après le bruit actuel. Ajuste-le si nécessaire.")});
 async function testRealSound(){
-if(testingSound)return;
+if(testingSound||noiseMeasure)return;
 if(active){
 var playing=beep();
 say(playing?"Signal de test programmé pendant la surveillance. Vérifie son volume réel.":"Son bloqué : vérifie le volume et le mode silencieux.");
