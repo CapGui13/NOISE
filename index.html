@@ -383,7 +383,7 @@ if(history.length){c.strokeStyle="#5ee5bf";c.lineWidth=3;c.lineJoin="round";c.be
 }
 function audio(){if(!ctx){var A=window.AudioContext||window.webkitAudioContext;if(!A)throw Error("Audio Web indisponible");ctx=new A()}if(ctx.state!=="running"){var p=ctx.resume();if(p&&p.catch)p.catch(function(){say("Le son a été bloqué. Appuie sur « Tester le son » et vérifie le mode silencieux.")})}return ctx}
 function releaseAudio(){
-var old=ctx;ctx=null;
+var old=ctx;ctx=null;weightedModulePromise=null;
 if(old&&old.state!=="closed"&&typeof old.close==="function"){try{var p=old.close();if(p&&p.catch)p.catch(function(){})}catch(err){}}
 }
 function note(freq,at,duration,amp,type){var c=audio(),o=c.createOscillator(),g=c.createGain();o.type=type||"square";o.frequency.setValueAtTime(freq,at);g.gain.setValueAtTime(0.0001,at);g.gain.exponentialRampToValueAtTime(Math.max(.0001,amp),at+.016);g.gain.setValueAtTime(Math.max(.0001,amp),at+duration-.055);g.gain.exponentialRampToValueAtTime(.0001,at+duration);o.connect(g);g.connect(c.destination);o.start(at);o.stop(at+duration+.01)}
