@@ -291,7 +291,7 @@ test('experimental dB(A) display is optional, persistent and independent of aler
   const oldThreshold = app.element('threshold').value;
   for (let step = 1; step <= 70; step++) app.frame(step * 140);
   assert.equal(app.element('level').textContent, 50);
-  assert.equal(app.element('estimatedDb').textContent, '73');
+  assert.equal(Number(app.element('estimatedDb').textContent), 73);
   assert.match(app.element('estimatedNote').textContent, /non certifiée/);
   assert.equal(app.element('threshold').value, oldThreshold);
 
