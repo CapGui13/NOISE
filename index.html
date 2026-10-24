@@ -80,6 +80,7 @@ details{margin-top:8px}summary{font-weight:700;cursor:pointer;padding:5px 0}deta
 <div class="control"><label for="nioshValue">LAeq de NIOSH pendant ces mêmes 20 secondes (dB(A))</label><input id="nioshValue" class="reference-input" type="number" inputmode="decimal" min="30" max="120" step="0.1" placeholder="Ex. 68,5" disabled></div>
 <div class="actions" style="margin-top:10px"><button id="saveReference" class="secondary" disabled>Enregistrer ce relevé</button><button id="clearReferences" class="secondary">Effacer les relevés</button></div>
 <div id="referenceHistory" class="reference-history" aria-live="polite">Aucune mesure enregistrée.</div>
+<div class="actions" style="margin-top:10px"><button id="copyReferences" class="secondary" disabled>📋 Copier les relevés</button></div>
 <p class="help">Pendant ces 20 secondes, NOISE suspend les bips pour ne pas fausser le relevé. Le résultat est une <strong>moyenne énergétique sur l'échelle relative</strong>, pas des décibels acoustiques. Les couples NOISE / NIOSH restent uniquement sur cet appareil.</p>
 </section>
 <section class="card">
@@ -107,7 +108,7 @@ var ids=["threshold","delay","cooldown","volume","sound"];
 var ctx=null,stream=null,source=null,analyser=null,buffer=null,raf=0;
 var active=false,starting=false,runToken=0,suspendedSince=0,resumePending=false,overSince=0,over=false,lastBeep=-1e12,audioRetryUntil=0,count=0;
 var level=0,measured=0,history=[],sampleAt=0,calibration=null,lastTick=0,testingSound=false,requestInFlight=null,testSession=null,noiseMeasure=null,lastNoiseMeasure=null,referenceRows=[];
-var ui={};["level","bar","marker","markerText","state","explain","start","stop","calibrate","capture","info","history","low","high","count","micLabel","test","reset","measureStart","measureCancel","measureValue","measureProgress","measureStatus","nioshValue","saveReference","clearReferences","referenceHistory"].forEach(function(k){ui[k]=document.getElementById(k)});
+var ui={};["level","bar","marker","markerText","state","explain","start","stop","calibrate","capture","info","history","low","high","count","micLabel","test","reset","measureStart","measureCancel","measureValue","measureProgress","measureStatus","nioshValue","saveReference","clearReferences","referenceHistory","copyReferences"].forEach(function(k){ui[k]=document.getElementById(k)});
 function el(x){return document.getElementById(x)}
 function n(x){return Number(el(x).value)}
 function clamp(x,lo,hi){return Math.max(lo,Math.min(hi,x))}
@@ -145,6 +146,7 @@ if(Array.isArray(parsed))referenceRows=parsed.filter(function(row){return row&&N
 renderReferenceRows()
 }
 function renderReferenceRows(){
+ui.copyReferences.disabled=!referenceRows.length;
 if(!referenceRows.length){ui.referenceHistory.textContent="Aucune mesure enregistrée.";return}
 ui.referenceHistory.textContent=referenceRows.map(function(row,i){return (i+1)+". NOISE "+row.noise.toFixed(1)+"/100 — NIOSH "+row.niosh.toFixed(1)+" dB(A)"}).join("\n")
 }
@@ -221,6 +223,13 @@ saveReferenceRows();
 lastNoiseMeasure=null;
 ui.saveReference.disabled=true;ui.nioshValue.disabled=true;
 ui.measureStatus.textContent="Relevé enregistré sur cet appareil. Tu peux recommencer à un autre volume.";
+});
+ui.copyReferences.addEventListener("click",function(){
+if(!referenceRows.length)return;
+var report="NOISE / NIOSH LAeq — moyennes 20 secondes\n"+
+referenceRows.map(function(r){return "NOISE "+r.noise.toFixed(1)+"/100 ; NIOSH "+r.niosh.toFixed(1)+" dB(A)"}).join("\n");
+if(!navigator.clipboard||!navigator.clipboard.writeText){ui.measureStatus.textContent="Copie manuellement la liste affichée : presse longtemps sur le texte.";return}
+navigator.clipboard.writeText(report).then(function(){ui.measureStatus.textContent="Relevés copiés : tu peux maintenant me les coller dans notre conversation.";},function(){ui.measureStatus.textContent="Copie bloquée par Safari : sélectionne directement la liste affichée."})
 });
 ui.clearReferences.addEventListener("click",function(){
 referenceRows=[];saveReferenceRows();
@@ -322,7 +331,7 @@ if(time>=calibration.end){
 var arr=calibration.values.sort(function(a,b){return a-b});
 var base=arr[Math.floor((arr.length-1)*.85)]||0;
 var target=clamp(base+9,10,95);
-el("threshold").value=target;safeSet("threshold",target);calibration=null;over=false;overSince=0;sync();
+el("threshold").value=target;safeSet("threshold",target);calibration=null;ui.measureStart.disabled=false;over=false;overSince=0;sync();
 say("Calibrage terminé. Niveau calme observé : "+base+"/100. Seuil proposé : "+target+"/100. Ajuste-le si besoin.");
 }
 return
@@ -382,7 +391,7 @@ say("Échec de la mise en route : "+err.message+". Vérifie l'autorisation du mi
 }
 ui.start.addEventListener("click",start);
 ui.stop.addEventListener("click",function(){stop("")});
-ui.calibrate.addEventListener("click",function(){if(!active||noiseMeasure)return;calibration={end:performance.now()+8000,values:[]};over=false;overSince=0;say("Calibrage sur 8 secondes : fais-le quand le volume de la salle est encore acceptable.")});
+ui.calibrate.addEventListener("click",function(){if(!active||noiseMeasure)return;ui.measureStart.disabled=true;calibration={end:performance.now()+8000,values:[]};over=false;overSince=0;say("Calibrage sur 8 secondes : fais-le quand le volume de la salle est encore acceptable.")});
 ui.capture.addEventListener("click",function(){if(!active||calibration||noiseMeasure)return;var val=clamp(measured,10,95);el("threshold").value=val;safeSet("threshold",val);over=false;overSince=0;sync();say("Seuil réglé à "+val+"/100 d'après le bruit actuel. Ajuste-le si nécessaire.")});
 async function testRealSound(){
 if(testingSound||noiseMeasure)return;
