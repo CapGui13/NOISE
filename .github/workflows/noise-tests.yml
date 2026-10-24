@@ -16,4 +16,4 @@ jobs:
         with:
           node-version: '22'
       - name: Test NOISE application logic
-        run: node --test tests/noise.test.cjs
+        run: node --test tests/noise.test.cjs tests/a-weighting.test.cjs
