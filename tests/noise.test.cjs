@@ -411,7 +411,7 @@ test('A motor processor crash disconnects only the experimental engine', async (
   await Promise.resolve(); await Promise.resolve();
   assert.ok(app.weightNode.onprocessorerror);
   app.weightNode.onprocessorerror();
-  assert.match(app.element('weightedStatus').textContent, /Ancien moteur conservé/);
+  assert.match(app.element('weightedStatus').textContent, /ancien moteur conservé/i);
   assert.equal(app.element('micLabel').textContent, '● Micro actif');
   app.click('stop');
   assert.equal(app.streams, app.stops);
