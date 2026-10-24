@@ -173,3 +173,85 @@ test('saved thresholds migrate to the new relative scale without erasing prefere
   assert.equal(app.storage.noise_scale, 'rms75');
   assert.equal(app.element('sound').value, 'loud');
 });
+
+test('20-second reference measurement averages energy and pauses noise alerts', async () => {
+  const app = simulator({ rms: 0.4 });
+  await app.click('start');
+  app.element('threshold').value = '10';
+  app.element('delay').value = '2';
+  assert.equal(app.element('measureStart').disabled, false);
+  app.click('measureStart');
+  assert.equal(app.element('test').disabled, true);
+  assert.equal(app.element('calibrate').disabled, true);
+  for (let step = 1; step <= 145; step++) app.frame(step * 140);
+  assert.equal(app.element('measureCancel').disabled, true);
+  assert.equal(app.element('measureStart').disabled, false);
+  assert.equal(app.element('measureProgress').style.width, '100%');
+  assert.ok(Math.abs(Number(app.element('measureValue').textContent) - 89.4) < 0.15);
+  assert.equal(app.element('count').textContent, '0', 'alarms must remain muted during the measurement');
+  app.element('nioshValue').value = '73';
+  app.click('saveReference');
+  const rows = JSON.parse(app.storage.noise_referenceRows);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].niosh, 73);
+  assert.equal(rows[0].noise, 89.4);
+  assert.match(app.element('referenceHistory').textContent, /NIOSH 73\.0 dB\(A\)/);
+  assert.equal(app.element('threshold').value, '10', 'measurement must not change alarm threshold');
+  app.click('stop');
+  assert.equal(app.streams, app.stops);
+});
+
+test('cancelling a partial measurement never stores a partial reference value', async () => {
+  const app = simulator();
+  await app.click('start');
+  app.click('measureStart');
+  for (let step = 1; step <= 25; step++) app.frame(step * 140);
+  app.click('measureCancel');
+  assert.equal(app.element('measureValue').textContent, '—');
+  assert.equal(app.element('saveReference').disabled, true);
+  assert.equal(app.element('measureStart').disabled, false);
+  assert.equal(app.storage.noise_referenceRows, undefined);
+  app.click('stop');
+});
+
+test('stopping monitoring midway through measurement safely resets measurement controls', async () => {
+  const app = simulator();
+  await app.click('start');
+  app.click('measureStart');
+  app.frame(1000);
+  app.click('stop');
+  assert.equal(app.element('measureCancel').disabled, true);
+  assert.equal(app.element('measureStart').disabled, true);
+  assert.equal(app.element('saveReference').disabled, true);
+  assert.equal(app.streams, app.stops);
+  await app.click('start');
+  assert.equal(app.element('measureStart').disabled, false);
+  app.click('stop');
+});
+
+test('invalid NIOSH value does not create a saved reference', async () => {
+  const app = simulator();
+  await app.click('start');
+  app.click('measureStart');
+  for (let step = 1; step <= 145; step++) app.frame(step * 140);
+  app.element('nioshValue').value = '200';
+  app.click('saveReference');
+  assert.equal(app.storage.noise_referenceRows, undefined);
+  assert.match(app.element('measureStatus').textContent, /valide/);
+  app.click('stop');
+});
+
+test('stored reference rows can be erased without changing the alarm settings', async () => {
+  const app = simulator();
+  await app.click('start');
+  app.element('threshold').value = '63';
+  app.click('measureStart');
+  for (let step = 1; step <= 145; step++) app.frame(step * 140);
+  app.element('nioshValue').value = '66.5';
+  app.click('saveReference');
+  assert.equal(JSON.parse(app.storage.noise_referenceRows).length, 1);
+  app.click('clearReferences');
+  assert.equal(JSON.parse(app.storage.noise_referenceRows).length, 0);
+  assert.equal(app.element('threshold').value, '63');
+  app.click('stop');
+});
