@@ -12,7 +12,10 @@ function simulator(options = {}) {
   const data = {
     elements: {}, timers: new Map(), events: {}, time: 0,
     contexts: 0, streams: 0, stops: 0, oscillators: 0, pending: [],
-    storage: options.storedThreshold === undefined ? {} : { noise_threshold: String(options.storedThreshold) }
+    storage: Object.assign(
+      options.storedThreshold === undefined ? {} : { noise_threshold: String(options.storedThreshold) },
+      options.showEstimatedDb === undefined ? {} : { noise_showEstimatedDb: String(options.showEstimatedDb) }
+    )
   };
   let hidden = false, frame = null, timerId = 0;
   const canvas = { clearRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {}, setLineDash() {} };
@@ -196,6 +199,8 @@ test('20-second reference measurement averages energy and pauses noise alerts', 
   assert.equal(rows.length, 1);
   assert.equal(rows[0].niosh, 73);
   assert.equal(rows[0].noise, 89.4);
+  assert.match(app.element('measureEstimate').textContent, /110 dB\(A\) estimés/);
+  assert.match(app.element('measureEstimate').textContent, /hors plage/);
   assert.match(app.element('referenceHistory').textContent, /NIOSH 73\.0 dB\(A\)/);
   assert.equal(app.element('threshold').value, '10', 'measurement must not change alarm threshold');
   app.click('stop');
@@ -272,5 +277,52 @@ test('saved paired readings can be copied with one tap', async () => {
   assert.match(app.copiedText, /NOISE 89\.4\/100/);
   app.click('clearReferences');
   assert.equal(app.element('copyReferences').disabled, true);
+  app.click('stop');
+});
+
+test('experimental dB(A) display is optional, persistent and independent of alert threshold', async () => {
+  // RMS -> relative NOISE index near 50 once the live smoothing has settled.
+  const rms = 10 ** ((50 * 0.75 - 75) / 20);
+  const app = simulator({ rms });
+  assert.equal(app.element('showEstimatedDb').checked, true);
+  assert.equal(app.element('estimatedPanel').hidden, false);
+  assert.equal(app.element('estimatedDb').textContent, '—');
+  await app.click('start');
+  const oldThreshold = app.element('threshold').value;
+  for (let step = 1; step <= 70; step++) app.frame(step * 140);
+  assert.equal(app.element('level').textContent, 50);
+  assert.equal(app.element('estimatedDb').textContent, '73');
+  assert.match(app.element('estimatedNote').textContent, /non certifiée/);
+  assert.equal(app.element('threshold').value, oldThreshold);
+
+  app.element('showEstimatedDb').checked = false;
+  app.element('showEstimatedDb').listeners.change();
+  assert.equal(app.element('estimatedPanel').hidden, true);
+  assert.equal(app.storage.noise_showEstimatedDb, 'false');
+  assert.equal(app.element('threshold').value, oldThreshold);
+
+  app.element('showEstimatedDb').checked = true;
+  app.element('showEstimatedDb').listeners.change();
+  assert.equal(app.element('estimatedPanel').hidden, false);
+  assert.equal(app.storage.noise_showEstimatedDb, 'true');
+
+  app.click('stop');
+  assert.equal(app.element('estimatedDb').textContent, '—');
+  assert.equal(app.streams, app.stops);
+});
+
+test('saved choice to hide dB(A) estimate restores when app starts', () => {
+  const app = simulator({ showEstimatedDb: false });
+  assert.equal(app.element('showEstimatedDb').checked, false);
+  assert.equal(app.element('estimatedPanel').hidden, true);
+  assert.equal(app.element('threshold').value, '55');
+});
+
+test('estimate warns when the live noise index is outside tested calibration range', async () => {
+  const app = simulator({ rms: 0.4 });
+  await app.click('start');
+  for (let step = 1; step <= 50; step++) app.frame(step * 140);
+  assert.ok(Number(app.element('level').textContent) > 58.2);
+  assert.match(app.element('estimatedNote').textContent, /extrapolation très incertaine/);
   app.click('stop');
 });
