@@ -44,6 +44,12 @@ select{width:100%;background:#2a4258;color:white;border:1px solid #60748a;border
 .help{font-size:12px;line-height:1.55;color:var(--muted);margin:10px 0 0}
 .notice{background:#353344;border:1px solid #665c67;color:#ffe0ae;border-radius:12px;padding:12px;font-size:13px;line-height:1.55;margin-top:16px}
 details{margin-top:8px}summary{font-weight:700;cursor:pointer;padding:5px 0}details p,details li{font-size:14px;color:#c4d3e2;line-height:1.6}details ol{padding-left:24px}
+.estimated-switch{display:flex;align-items:center;justify-content:center;gap:9px;margin:6px auto 0;font-size:13px;color:var(--muted);cursor:pointer;line-height:1.4}
+.estimated-switch input{width:19px;height:19px;accent-color:var(--good);flex-shrink:0}
+.estimated-panel{margin:12px 0 2px;padding:12px 11px 9px;border:1px solid var(--line);border-radius:12px;background:#132638;text-align:center}
+.estimated-number{font-size:34px;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums;color:#a0e6d4}
+.estimated-number span{font-size:14px;font-weight:600;color:#c3d9e6}
+.estimated-note{font-size:11px;color:var(--muted);line-height:1.5;margin-top:6px}
 .reference-value{font-size:48px;line-height:1.2;font-weight:800;font-variant-numeric:tabular-nums;text-align:center;margin:11px 0 6px}
 .reference-meter{background:#334960;height:12px;border-radius:99px;overflow:hidden;margin:9px 0}
 .reference-meter>div{height:100%;background:var(--good);width:0%;transition:width .15s linear}
@@ -57,7 +63,11 @@ details{margin-top:8px}summary{font-weight:700;cursor:pointer;padding:5px 0}deta
 <header><div><h1>🤫 Chut !</h1><div class="sub">NOISE · L'arbitre du bruit</div></div><div class="privacy">🔒 Traitement local<br>Aucun son enregistré</div></header>
 <section class="card">
 <div class="head"><h2>Surveillance de la salle</h2><span class="mini" id="micLabel">Micro inactif</span></div>
-<div class="live"><div class="mini">Indice sonore relatif · pas des décibels</div><div class="big"><span id="level">—</span><span class="suffix">/ 100</span></div></div>
+<div class="live"><div class="mini">Indice sonore relatif · pas des décibels</div><div class="big"><span id="level">—</span><span class="suffix">/ 100</span></div>
+<label for="showEstimatedDb" class="estimated-switch"><input type="checkbox" id="showEstimatedDb" checked> Afficher les dB(A) estimés</label>
+<div class="estimated-panel" id="estimatedPanel"><div class="estimated-number">≈ <span id="estimatedDb" style="font-size:inherit;color:inherit">—</span> <span>dB(A) estimés</span></div>
+<div class="estimated-note" id="estimatedNote">Calibration expérimentale sur 3 moyennes de 20 s, non certifiée. Le niveau instantané n'est pas un LAeq.</div></div>
+</div>
 <div class="track" aria-label="Niveau sonore relatif et seuil"><div id="bar" class="fill"></div><div id="marker" class="marker"></div></div>
 <div class="scale"><span>Silence</span><span id="markerText">Seuil : 55</span><span>Fort</span></div>
 <div id="state" class="state">Surveillance arrêtée</div>
@@ -68,20 +78,20 @@ details{margin-top:8px}summary{font-weight:700;cursor:pointer;padding:5px 0}deta
 <section class="card">
 <div class="head"><h2>Historique du bruit</h2><span class="mini">60 dernières secondes</span></div>
 <canvas id="history" width="600" height="144" aria-label="Historique du bruit et seuil"></canvas>
-<p class="chartnote">Courbe turquoise : bruit mesuré. Ligne pointillée : seuil choisi. L'échelle 0–100 est <strong>relative</strong>, pas en décibels acoustiques.</p>
+<p class="chartnote">Courbe turquoise : bruit mesuré. Ligne pointillée : seuil choisi. L'échelle 0–100 reste <strong>relative</strong> et pilote seule les alertes, quel que soit l'affichage des dB(A) estimés.</p>
 </section>
 <section class="card" id="referenceSection">
 <div class="head"><h2>Comparer NOISE avec NIOSH</h2><span class="mini">Mesure sur 20 s</span></div>
 <p class="help">Place les deux iPhone côte à côte, micros dégagés. Lance une mesure de 20 s dans NIOSH (LAeq, pondération A), puis celle-ci presque simultanément. Garde le même son et le même volume pendant les deux mesures.</p>
 <div class="actions" style="margin-top:15px"><button id="measureStart" class="secondary" disabled>⏱ Mesurer 20 s</button><button id="measureCancel" class="secondary" disabled>Annuler la mesure</button></div>
-<div class="reference-value"><span id="measureValue">—</span><span class="suffix">/ 100</span></div>
+<div class="reference-value"><span id="measureValue">—</span><span class="suffix">/ 100</span></div><p class="help" id="measureEstimate" style="text-align:center">Estimation expérimentale : —</p>
 <div class="reference-meter" aria-label="Progression de la mesure"><div id="measureProgress"></div></div>
 <p class="help" id="measureStatus" role="status" aria-live="polite">Appuie d'abord sur Démarrer pour activer le microphone.</p>
 <div class="control"><label for="nioshValue">LAeq de NIOSH pendant ces mêmes 20 secondes (dB(A))</label><input id="nioshValue" class="reference-input" type="number" inputmode="decimal" min="30" max="120" step="0.1" placeholder="Ex. 68,5" disabled></div>
 <div class="actions" style="margin-top:10px"><button id="saveReference" class="secondary" disabled>Enregistrer ce relevé</button><button id="clearReferences" class="secondary">Effacer les relevés</button></div>
 <div id="referenceHistory" class="reference-history" aria-live="polite">Aucune mesure enregistrée.</div>
 <div class="actions" style="margin-top:10px"><button id="copyReferences" class="secondary" disabled>📋 Copier les relevés</button></div>
-<p class="help">Pendant ces 20 secondes, NOISE suspend les bips pour ne pas fausser le relevé. Le résultat est une <strong>moyenne énergétique sur l'échelle relative</strong>, pas des décibels acoustiques. Les couples NOISE / NIOSH restent uniquement sur cet appareil.</p>
+<p class="help">Pendant ces 20 secondes, NOISE suspend les bips pour ne pas fausser le relevé. La correspondance expérimentale repose sur 3 mesures de 20 s : 39,0 → 62,4 ; 49,8 → 71,6 ; 58,2 → 80,7 dB(A). Elle n'est pas un étalonnage acoustique. Les couples NOISE / NIOSH restent uniquement sur cet appareil.</p>
 </section>
 <section class="card">
 <h2 style="margin:0">Régler le déclenchement</h2>
@@ -99,7 +109,7 @@ details{margin-top:8px}summary{font-weight:700;cursor:pointer;padding:5px 0}deta
 <ol><li>Ouvre l'application dans Safari en HTTPS et autorise le microphone.</li><li>Désactive le mode silencieux, monte le volume puis utilise « Tester le son ».</li><li>Dans Réglages → Luminosité et affichage → Verrouillage automatique, choisis « Jamais » pendant la séance si disponible.</li><li>Laisse l'iPhone branché, écran allumé et NOISE au premier plan. Évite de le poser juste à côté d'une seule table.</li><li>Si tu reviens dans NOISE après avoir verrouillé l'écran, appuie sur Démarrer pour relancer la surveillance.</li></ol>
 <p>La puissance du haut-parleur d'un ancien iPhone peut être insuffisante pour une grande salle. Une enceinte externe peut aider, mais il faut la tester : son propre bip peut être capté par le micro.</p>
 </details></section>
-<p class="footer">NOISE v4.1 · Fonctionnement local, sans serveur d'écoute ni stockage des sons. Les réglages et les relevés NOISE / NIOSH sont conservés sur cet appareil. Les chiffres ne sont pas des dB SPL mesurés par un sonomètre calibré. Safari peut interrompre le microphone lorsque l'application n'est plus visible.</p>
+<p class="footer">NOISE v4.2 · Fonctionnement local, sans serveur d'écoute ni stockage des sons. Les réglages et les relevés NOISE / NIOSH sont conservés sur cet appareil. Les chiffres ne sont pas des dB SPL mesurés par un sonomètre calibré. Safari peut interrompre le microphone lorsque l'application n'est plus visible.</p>
 </main>
 <script>
 (function(){
@@ -108,7 +118,7 @@ var ids=["threshold","delay","cooldown","volume","sound"];
 var ctx=null,stream=null,source=null,analyser=null,buffer=null,raf=0;
 var active=false,starting=false,runToken=0,suspendedSince=0,resumePending=false,overSince=0,over=false,lastBeep=-1e12,audioRetryUntil=0,count=0;
 var level=0,measured=0,history=[],sampleAt=0,calibration=null,lastTick=0,testingSound=false,requestInFlight=null,testSession=null,noiseMeasure=null,lastNoiseMeasure=null,referenceRows=[];
-var ui={};["level","bar","marker","markerText","state","explain","start","stop","calibrate","capture","info","history","low","high","count","micLabel","test","reset","measureStart","measureCancel","measureValue","measureProgress","measureStatus","nioshValue","saveReference","clearReferences","referenceHistory","copyReferences"].forEach(function(k){ui[k]=document.getElementById(k)});
+var ui={};["level","bar","marker","markerText","state","explain","start","stop","calibrate","capture","info","history","low","high","count","micLabel","test","reset","measureStart","measureCancel","measureValue","measureProgress","measureStatus","nioshValue","saveReference","clearReferences","referenceHistory","copyReferences","showEstimatedDb","estimatedPanel","estimatedDb","estimatedNote","measureEstimate"].forEach(function(k){ui[k]=document.getElementById(k)});
 function el(x){return document.getElementById(x)}
 function n(x){return Number(el(x).value)}
 function clamp(x,lo,hi){return Math.max(lo,Math.min(hi,x))}
@@ -116,6 +126,22 @@ function say(msg){ui.info.textContent=msg}
 function state(msg,kind){ui.state.textContent=msg;ui.state.className="state "+(kind||"")}
 function safeGet(id){try{return localStorage.getItem("noise_"+id)}catch(e){return null}}
 function safeSet(id,v){try{localStorage.setItem("noise_"+id,v)}catch(e){}}
+// Régression sur trois moyennes de 20 s (NIOSH en dB(A)); pas sur les relevés instantanés.
+// NOISE 39,0 -> NIOSH 62,4 ; 49,8 -> 71,6 ; 58,2 -> 80,7.
+var dbSlope=0.9484024179620036,dbIntercept=25.094948186528484;
+function estimateDbA(value){return dbIntercept+dbSlope*value}
+function estimateOutOfRange(value){return value<39||value>58.2}
+function displayEstimatedDb(){
+ui.estimatedPanel.hidden=!ui.showEstimatedDb.checked;
+if(!ui.showEstimatedDb.checked)return;
+ui.estimatedDb.textContent=active?Math.round(estimateDbA(measured)):"—";
+ui.estimatedNote.textContent=active&&estimateOutOfRange(measured)?
+"Hors plage des 3 mesures (indice 39–58,2) : extrapolation très incertaine. Indication instantanée, pas un LAeq.":
+"Calibration expérimentale : 3 moyennes de 20 s, non certifiée. Indication instantanée, pas un LAeq.";
+}
+ui.showEstimatedDb.checked=safeGet("showEstimatedDb")!=="false";
+ui.showEstimatedDb.addEventListener("change",function(){safeSet("showEstimatedDb",ui.showEstimatedDb.checked?"true":"false");displayEstimatedDb()});
+
 function stopTracks(s){if(s){s.getTracks().forEach(function(t){try{t.onended=null;t.stop()}catch(err){}})}}
 function cancelPendingMicro(){
 if(requestInFlight){var r=requestInFlight;requestInFlight=null;r.cancel()}
@@ -158,6 +184,7 @@ ui.measureCancel.disabled=true;
 ui.measureStart.disabled=!active;
 ui.measureProgress.style.width="0%";
 ui.measureValue.textContent="—";
+ui.measureEstimate.textContent="Estimation expérimentale : —";
 ui.measureStatus.textContent=message||"Mesure annulée.";
 ui.nioshValue.disabled=true;
 ui.saveReference.disabled=true;
@@ -178,12 +205,14 @@ over=false;overSince=0;
 if(m.samples<65){
 lastNoiseMeasure=null;
 ui.measureValue.textContent="—";
+ui.measureEstimate.textContent="Estimation expérimentale : —";
 ui.measureStatus.textContent="Mesure incomplète : trop peu d'échantillons. Laisse NOISE visible et recommence.";
 ui.nioshValue.disabled=true;ui.saveReference.disabled=true;
 return
 }
 lastNoiseMeasure=Math.round(relativeIndex(m.power/m.samples)*10)/10;
 ui.measureValue.textContent=lastNoiseMeasure.toFixed(1);
+ui.measureEstimate.textContent="≈ "+Math.round(estimateDbA(lastNoiseMeasure))+" dB(A) estimés"+(estimateOutOfRange(lastNoiseMeasure)?" — hors plage de calibration":"")+" (à comparer au LAeq NIOSH).";
 ui.measureProgress.style.width="100%";
 ui.measureStatus.textContent="Mesure terminée et figée ("+m.samples+" échantillons). Relève maintenant le LAeq de NIOSH pour les mêmes 20 s.";
 ui.nioshValue.disabled=false;ui.saveReference.disabled=false;
@@ -203,7 +232,7 @@ ui.measureStart.addEventListener("click",function(){
 if(!active||noiseMeasure||calibration)return;
 lastNoiseMeasure=null;
 noiseMeasure={start:performance.now(),samples:0,power:0};
-ui.measureValue.textContent="—";ui.measureProgress.style.width="0%";
+ui.measureValue.textContent="—";ui.measureEstimate.textContent="Estimation expérimentale : —";ui.measureProgress.style.width="0%";
 ui.measureStatus.textContent="Mesure en cours : 20 s restantes. Bips suspendus.";
 ui.measureStart.disabled=true;ui.measureCancel.disabled=false;
 ui.nioshValue.value="";ui.nioshValue.disabled=true;ui.saveReference.disabled=true;
@@ -288,7 +317,7 @@ ui.test.disabled=false;
 ui.measureStart.disabled=true;ui.measureCancel.disabled=true;
 ui.micLabel.textContent="Micro inactif";state(reason?"Surveillance interrompue":"Surveillance arrêtée",reason?"warn":"");
 ui.explain.textContent=reason||"Microphone coupé. Appuie sur Démarrer.";
-ui.level.textContent="—";ui.bar.style.width="0%";
+ui.level.textContent="—";ui.bar.style.width="0%";displayEstimatedDb();
 }
 function updateStats(){
 if(!history.length){ui.low.textContent="—";ui.high.textContent="—";return}
@@ -320,6 +349,7 @@ var rms=Math.sqrt(power);
 var raw=clamp((20*Math.log10(Math.max(rms,.0000001))+75)*100/75,0,100);
 level=level*.64+raw*.36;measured=Math.round(level);
 ui.level.textContent=measured;
+displayEstimatedDb();
 ui.bar.style.width=measured+"%";ui.bar.style.background=measured>=n("threshold")?"#ff8e86":"#5ee5bf";
 if(time-sampleAt>=500){history.push(measured);if(history.length>120)history.shift();sampleAt=time;updateStats();paint()}
 if(noiseMeasure){updateNoiseMeasure(time,power);over=false;overSince=0;state("Mesure de référence","warn");ui.explain.textContent="Bips suspendus pendant la mesure de 20 s.";return}
@@ -439,7 +469,7 @@ ui.test.addEventListener("click",testRealSound);
 ui.reset.addEventListener("click",function(){var values={threshold:55,delay:4,cooldown:60,volume:80,sound:"loud"};ids.forEach(function(k){el(k).value=values[k];safeSet(k,values[k])});sync();say("Réglages par défaut rétablis.")});
 document.addEventListener("visibilitychange",function(){if(document.hidden&&(active||starting||testingSound))stop("Page masquée ou écran verrouillé. Relance la surveillance au retour.")});
 window.addEventListener("pagehide",function(){if(active||starting||testingSound)stop("Page quittée. Relance la surveillance.");releaseAudio()});
-sync();paint();
+sync();paint();displayEstimatedDb();
 })();
 </script>
 </body></html>
