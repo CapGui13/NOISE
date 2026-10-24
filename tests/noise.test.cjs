@@ -66,6 +66,7 @@ function simulator(options = {}) {
     return { get active() { return live; }, getTracks() { return [track]; }, getAudioTracks() { return [track]; } };
   }
   const navigator = {
+    clipboard: { writeText(value) { data.copiedText = value; return Promise.resolve(); } },
     mediaDevices: {
       getUserMedia() {
         if (options.pendingMicro) return new Promise(resolve => data.pending.push(resolve));
@@ -253,5 +254,23 @@ test('stored reference rows can be erased without changing the alarm settings', 
   app.click('clearReferences');
   assert.equal(JSON.parse(app.storage.noise_referenceRows).length, 0);
   assert.equal(app.element('threshold').value, '63');
+  app.click('stop');
+});
+
+
+test('saved paired readings can be copied with one tap', async () => {
+  const app = simulator({ rms: 0.4 });
+  await app.click('start');
+  app.click('measureStart');
+  for (let step = 1; step <= 145; step++) app.frame(step * 140);
+  app.element('nioshValue').value = '79';
+  app.click('saveReference');
+  assert.equal(app.element('copyReferences').disabled, false);
+  app.click('copyReferences');
+  await Promise.resolve();
+  assert.match(app.copiedText, /NIOSH 79\.0 dB\(A\)/);
+  assert.match(app.copiedText, /NOISE 89\.4\/100/);
+  app.click('clearReferences');
+  assert.equal(app.element('copyReferences').disabled, true);
   app.click('stop');
 });
