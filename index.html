@@ -44,6 +44,11 @@ select{width:100%;background:#2a4258;color:white;border:1px solid #60748a;border
 .help{font-size:12px;line-height:1.55;color:var(--muted);margin:10px 0 0}
 .notice{background:#353344;border:1px solid #665c67;color:#ffe0ae;border-radius:12px;padding:12px;font-size:13px;line-height:1.55;margin-top:16px}
 details{margin-top:8px}summary{font-weight:700;cursor:pointer;padding:5px 0}details p,details li{font-size:14px;color:#c4d3e2;line-height:1.6}details ol{padding-left:24px}
+.weighted-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}
+.weighted-stat{background:#102235;border-radius:12px;padding:13px 8px;text-align:center}
+.weighted-stat b{display:block;font-size:26px;line-height:1.3;font-variant-numeric:tabular-nums;color:#a0e6d4}
+.weighted-stat span{font-size:11px;color:var(--muted);line-height:1.4}
+.weighted-status{font-size:13px;line-height:1.6;color:var(--muted)}
 .estimated-switch{display:flex;align-items:center;justify-content:center;gap:9px;margin:6px auto 0;font-size:13px;color:var(--muted);cursor:pointer;line-height:1.4}
 .estimated-switch input{width:19px;height:19px;accent-color:var(--good);flex-shrink:0}
 .estimated-panel{margin:12px 0 2px;padding:12px 11px 9px;border:1px solid var(--line);border-radius:12px;background:#132638;text-align:center}
@@ -80,11 +85,23 @@ details{margin-top:8px}summary{font-weight:700;cursor:pointer;padding:5px 0}deta
 <canvas id="history" width="600" height="144" aria-label="Historique du bruit et seuil"></canvas>
 <p class="chartnote">Courbe turquoise : bruit mesuré. Ligne pointillée : seuil choisi. L'échelle 0–100 reste <strong>relative</strong> et pilote seule les alertes, quel que soit l'affichage des dB(A) estimés.</p>
 </section>
+<section class="card" id="weightedSection">
+<div class="head"><h2>Mesure pondérée A · V5</h2><span class="mini">Expérimental</span></div>
+<p class="help">Second moteur en parallèle : pondération fréquentielle A et calcul continu. Il ne commande <strong>jamais</strong> les alertes. Si Safari ne le prend pas en charge, NOISE utilise toujours son moteur habituel.</p>
+<div class="weighted-grid">
+<div class="weighted-stat"><b id="weightedLevel">—</b><span>Niveau numérique pondéré A · dBFS(A)</span></div>
+<div class="weighted-stat"><b id="weightedEstimate">—</b><span>dB(A) estimés · après étalonnage NIOSH</span></div>
+</div>
+<div class="weighted-status" id="weightedStatus">Démarre la surveillance pour tester le nouveau moteur A.</div>
+<div class="help" id="weightedCalibration">Étalonnage V5 : 0/3 mesures pondérées A avec NIOSH.</div>
+<p class="help">Le dBFS(A) est un niveau <strong>numérique</strong>, pas un décibel acoustique. Après au moins trois mesures de référence, NOISE peut appliquer une correction propre au microphone. Il ne devient pas un sonomètre certifié.</p>
+</section>
 <section class="card" id="referenceSection">
 <div class="head"><h2>Comparer NOISE avec NIOSH</h2><span class="mini">Mesure sur 20 s</span></div>
 <p class="help">Place les deux iPhone côte à côte, micros dégagés. Lance une mesure de 20 s dans NIOSH (LAeq, pondération A), puis celle-ci presque simultanément. Garde le même son et le même volume pendant les deux mesures.</p>
 <div class="actions" style="margin-top:15px"><button id="measureStart" class="secondary" disabled>⏱ Mesurer 20 s</button><button id="measureCancel" class="secondary" disabled>Annuler la mesure</button></div>
-<div class="reference-value"><span id="measureValue">—</span><span class="suffix">/ 100</span></div><p class="help" id="measureEstimate" style="text-align:center">Estimation expérimentale : —</p>
+<div class="reference-value"><span id="measureValue">—</span><span class="suffix">/ 100</span></div><p class="help" id="measureEstimate" style="text-align:center">Estimation historique : —</p>
+<p class="help" id="measureWeighted" style="text-align:center">Nouvelle mesure pondérée A : —</p>
 <div class="reference-meter" aria-label="Progression de la mesure"><div id="measureProgress"></div></div>
 <p class="help" id="measureStatus" role="status" aria-live="polite">Appuie d'abord sur Démarrer pour activer le microphone.</p>
 <div class="control"><label for="nioshValue">LAeq de NIOSH pendant ces mêmes 20 secondes (dB(A))</label><input id="nioshValue" class="reference-input" type="number" inputmode="decimal" min="30" max="120" step="0.1" placeholder="Ex. 68,5" disabled></div>
@@ -109,7 +126,7 @@ details{margin-top:8px}summary{font-weight:700;cursor:pointer;padding:5px 0}deta
 <ol><li>Ouvre l'application dans Safari en HTTPS et autorise le microphone.</li><li>Désactive le mode silencieux, monte le volume puis utilise « Tester le son ».</li><li>Dans Réglages → Luminosité et affichage → Verrouillage automatique, choisis « Jamais » pendant la séance si disponible.</li><li>Laisse l'iPhone branché, écran allumé et NOISE au premier plan. Évite de le poser juste à côté d'une seule table.</li><li>Si tu reviens dans NOISE après avoir verrouillé l'écran, appuie sur Démarrer pour relancer la surveillance.</li></ol>
 <p>La puissance du haut-parleur d'un ancien iPhone peut être insuffisante pour une grande salle. Une enceinte externe peut aider, mais il faut la tester : son propre bip peut être capté par le micro.</p>
 </details></section>
-<p class="footer">NOISE v4.2 · Fonctionnement local, sans serveur d'écoute ni stockage des sons. Les réglages et les relevés NOISE / NIOSH sont conservés sur cet appareil. Les chiffres ne sont pas des dB SPL mesurés par un sonomètre calibré. Safari peut interrompre le microphone lorsque l'application n'est plus visible.</p>
+<p class="footer">NOISE v5.0 · Fonctionnement local, sans serveur d'écoute ni stockage des sons. Les réglages et les relevés NOISE / NIOSH, y compris les valeurs pondérées A, restent conservés sur cet appareil. Les chiffres ne sont pas des dB SPL mesurés par un sonomètre calibré. Safari peut interrompre le microphone lorsque l'application n'est plus visible.</p>
 </main>
 <script>
 (function(){
@@ -117,8 +134,8 @@ details{margin-top:8px}summary{font-weight:700;cursor:pointer;padding:5px 0}deta
 var ids=["threshold","delay","cooldown","volume","sound"];
 var ctx=null,stream=null,source=null,analyser=null,buffer=null,raf=0;
 var active=false,starting=false,runToken=0,suspendedSince=0,resumePending=false,overSince=0,over=false,lastBeep=-1e12,audioRetryUntil=0,count=0;
-var level=0,measured=0,history=[],sampleAt=0,calibration=null,lastTick=0,testingSound=false,requestInFlight=null,testSession=null,noiseMeasure=null,lastNoiseMeasure=null,referenceRows=[];
-var ui={};["level","bar","marker","markerText","state","explain","start","stop","calibrate","capture","info","history","low","high","count","micLabel","test","reset","measureStart","measureCancel","measureValue","measureProgress","measureStatus","nioshValue","saveReference","clearReferences","referenceHistory","copyReferences","showEstimatedDb","estimatedPanel","estimatedDb","estimatedNote","measureEstimate"].forEach(function(k){ui[k]=document.getElementById(k)});
+var level=0,measured=0,history=[],sampleAt=0,calibration=null,lastTick=0,testingSound=false,requestInFlight=null,testSession=null,noiseMeasure=null,lastNoiseMeasure=null,referenceRows=[],weightedSession=null,weightedModulePromise=null,weightedMeasurementId=0,lastWeightedResult=null,lastMeasurementId=null,pendingWeightedRow=null;
+var ui={};["level","bar","marker","markerText","state","explain","start","stop","calibrate","capture","info","history","low","high","count","micLabel","test","reset","measureStart","measureCancel","measureValue","measureProgress","measureStatus","nioshValue","saveReference","clearReferences","referenceHistory","copyReferences","showEstimatedDb","estimatedPanel","estimatedDb","estimatedNote","measureEstimate","weightedLevel","weightedEstimate","weightedStatus","weightedCalibration","measureWeighted"].forEach(function(k){ui[k]=document.getElementById(k)});
 function el(x){return document.getElementById(x)}
 function n(x){return Number(el(x).value)}
 function clamp(x,lo,hi){return Math.max(lo,Math.min(hi,x))}
@@ -164,22 +181,87 @@ navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppress
 }catch(err){finish(err)}
 })
 }
+// Le moteur d'alarme historique fonctionne indépendamment de ce moteur A.
+function weightedCalibrationData(){
+var list=referenceRows.filter(function(r){return typeof r.weightedDbfsA==="number"&&Number.isFinite(r.weightedDbfsA)&&r.weightedDbfsA>=-140&&r.weightedDbfsA<=10&&Number.isFinite(r.niosh)});
+if(list.length<3)return {count:list.length,offset:null,spread:null};
+var offsets=list.map(function(r){return r.niosh-r.weightedDbfsA}).sort(function(a,b){return a-b});
+var n=offsets.length,median=n%2?offsets[(n-1)/2]:(offsets[n/2-1]+offsets[n/2])/2;
+return {count:n,offset:median,spread:offsets[n-1]-offsets[0]}
+}
+function updateWeightedUI(){
+var w=weightedSession,x=w&&Number.isFinite(w.dbfsA)?w.dbfsA:null,cal=weightedCalibrationData();
+ui.weightedLevel.textContent=x===null?"—":x.toFixed(1);
+ui.weightedEstimate.textContent=x===null||cal.offset===null?"—":Math.round(x+cal.offset);
+ui.weightedCalibration.textContent="Étalonnage V5 : "+cal.count+"/3 mesures pondérées A avec NIOSH"+
+(cal.offset===null?". Il reste des mesures à effectuer.":". Correction médiane : "+cal.offset.toFixed(1)+" dB ; dispersion : "+cal.spread.toFixed(1)+" dB.")+
+(cal.spread!==null&&cal.spread>4?" ⚠️ Dispersion importante : à revérifier.":"")
+}
+function renderWeightedMeasurement(){
+if(lastWeightedResult===null||!Number.isFinite(lastWeightedResult)){
+ui.measureWeighted.textContent=weightedSession&&lastMeasurementId!==null?"Mesure pondérée A : résultat en attente…":"Mesure pondérée A indisponible (ancien moteur conservé).";return
+}
+var cal=weightedCalibrationData();
+ui.measureWeighted.textContent="Pondération A (20 s) : "+lastWeightedResult.toFixed(1)+" dBFS(A)"+
+(cal.offset===null?" — à étalonner avec NIOSH":" · ≈ "+Math.round(lastWeightedResult+cal.offset)+" dB(A) estimés")
+}
+function cleanupWeighted(){
+var w=weightedSession;weightedSession=null;if(!w)return;
+try{w.node.port.onmessage=null;w.node.port.postMessage({type:"cancelMeasurement"})}catch(err){}
+try{w.node.disconnect()}catch(err){}
+try{w.silent.disconnect()}catch(err){}
+try{if(w.source)w.source.disconnect(w.node)}catch(err){}
+try{if(w.node.port.close)w.node.port.close()}catch(err){}
+updateWeightedUI()
+}
+async function prepareWeighted(c,micSource,token){
+if(!c.audioWorklet||typeof c.audioWorklet.addModule!=="function"||!window.AudioWorkletNode){
+ui.weightedStatus.textContent="AudioWorklet indisponible sur cet appareil. Ancien moteur conservé.";return
+}
+ui.weightedStatus.textContent="Initialisation du moteur A…";
+try{
+if(!weightedModulePromise)weightedModulePromise=c.audioWorklet.addModule("./a-weighting-worklet.js?v=5.0");
+await weightedModulePromise;
+if(token!==runToken||!active||source!==micSource||ctx!==c)return;
+var node=new window.AudioWorkletNode(c,"noise-a-meter-v5",{numberOfInputs:1,numberOfOutputs:1,outputChannelCount:[1]});
+var silent=c.createGain();silent.gain.value=0;
+var w={node:node,silent:silent,source:micSource,dbfsA:null,token:token};
+node.port.onmessage=function(evt){
+var m=evt.data;if(!m||token!==runToken||weightedSession!==w||!active)return;
+if(m.type==="level"&&Number.isFinite(m.dbfsA)){w.dbfsA=m.dbfsA;updateWeightedUI()}
+if(m.type==="measurement"&&Number.isFinite(m.dbfsA)){
+if(noiseMeasure&&noiseMeasure.id===m.id)noiseMeasure.weightedDbfsA=m.dbfsA;
+if(lastMeasurementId===m.id){lastWeightedResult=m.dbfsA;renderWeightedMeasurement()}
+if(pendingWeightedRow&&pendingWeightedRow.id===m.id){
+pendingWeightedRow.row.weightedDbfsA=m.dbfsA;pendingWeightedRow=null;saveReferenceRows()
+}
+}
+};
+node.onprocessorerror=function(){if(weightedSession===w){cleanupWeighted();ui.weightedStatus.textContent="Erreur moteur A : ancien moteur conservé."}};
+micSource.connect(node);node.connect(silent);silent.connect(c.destination);
+weightedSession=w;ui.weightedStatus.textContent="Filtre A actif · mesure continue. Aucun son enregistré.";
+updateWeightedUI()
+}catch(err){weightedModulePromise=null;ui.weightedStatus.textContent="Moteur A indisponible ("+(err&&err.message?err.message:"erreur")+"). Ancien moteur conservé."}
+}
 function restoreReferenceRows(){
 try{
 var parsed=JSON.parse(safeGet("referenceRows")||"[]");
 if(Array.isArray(parsed))referenceRows=parsed.filter(function(row){return row&&Number.isFinite(row.noise)&&Number.isFinite(row.niosh)&&row.noise>=0&&row.noise<=100&&row.niosh>=30&&row.niosh<=120}).slice(-12)
 }catch(err){referenceRows=[]}
-renderReferenceRows()
+renderReferenceRows();updateWeightedUI()
 }
 function renderReferenceRows(){
 ui.copyReferences.disabled=!referenceRows.length;
 if(!referenceRows.length){ui.referenceHistory.textContent="Aucune mesure enregistrée.";return}
-ui.referenceHistory.textContent=referenceRows.map(function(row,i){return (i+1)+". NOISE "+row.noise.toFixed(1)+"/100 — NIOSH "+row.niosh.toFixed(1)+" dB(A)"}).join("\n")
+ui.referenceHistory.textContent=referenceRows.map(function(row,i){return (i+1)+". NOISE "+row.noise.toFixed(1)+"/100 — NIOSH "+row.niosh.toFixed(1)+" dB(A)"+(Number.isFinite(row.weightedDbfsA)?" · A "+row.weightedDbfsA.toFixed(1)+" dBFS(A)":"")}).join("\n")
 }
-function saveReferenceRows(){safeSet("referenceRows",JSON.stringify(referenceRows));renderReferenceRows()}
+function saveReferenceRows(){safeSet("referenceRows",JSON.stringify(referenceRows));renderReferenceRows();updateWeightedUI();renderWeightedMeasurement()}
 function cancelNoiseMeasure(message){
 if(!noiseMeasure)return;
 noiseMeasure=null;
+if(weightedSession)try{weightedSession.node.port.postMessage({type:"cancelMeasurement"})}catch(err){}
+lastMeasurementId=null;lastWeightedResult=null;pendingWeightedRow=null;
+ui.measureWeighted.textContent="Nouvelle mesure pondérée A : —";
 ui.measureCancel.disabled=true;
 ui.measureStart.disabled=!active;
 ui.measureProgress.style.width="0%";
@@ -199,6 +281,7 @@ function finishNoiseMeasure(){
 var m=noiseMeasure;
 if(!m)return;
 noiseMeasure=null;
+lastMeasurementId=m.id;lastWeightedResult=Number.isFinite(m.weightedDbfsA)?m.weightedDbfsA:null;
 ui.measureCancel.disabled=true;ui.measureStart.disabled=!active;
 ui.calibrate.disabled=!active;ui.capture.disabled=!active;ui.test.disabled=!active;
 over=false;overSince=0;
@@ -216,6 +299,7 @@ ui.measureEstimate.textContent="≈ "+Math.round(estimateDbA(lastNoiseMeasure))+
 ui.measureProgress.style.width="100%";
 ui.measureStatus.textContent="Mesure terminée et figée ("+m.samples+" échantillons). Relève maintenant le LAeq de NIOSH pour les mêmes 20 s.";
 ui.nioshValue.disabled=false;ui.saveReference.disabled=false;
+renderWeightedMeasurement()
 }
 function updateNoiseMeasure(time,power){
 var m=noiseMeasure;
@@ -231,8 +315,10 @@ return true
 ui.measureStart.addEventListener("click",function(){
 if(!active||noiseMeasure||calibration)return;
 lastNoiseMeasure=null;
-noiseMeasure={start:performance.now(),samples:0,power:0};
-ui.measureValue.textContent="—";ui.measureEstimate.textContent="Estimation expérimentale : —";ui.measureProgress.style.width="0%";
+noiseMeasure={start:performance.now(),samples:0,power:0,id:++weightedMeasurementId,weightedDbfsA:null};
+lastMeasurementId=null;lastWeightedResult=null;pendingWeightedRow=null;
+if(weightedSession)try{weightedSession.node.port.postMessage({type:"beginMeasurement",id:noiseMeasure.id})}catch(err){}
+ui.measureValue.textContent="—";ui.measureEstimate.textContent="Estimation historique : —";ui.measureWeighted.textContent="Mesure pondérée A en cours…";ui.measureProgress.style.width="0%";
 ui.measureStatus.textContent="Mesure en cours : 20 s restantes. Bips suspendus.";
 ui.measureStart.disabled=true;ui.measureCancel.disabled=false;
 ui.nioshValue.value="";ui.nioshValue.disabled=true;ui.saveReference.disabled=true;
@@ -246,7 +332,10 @@ var niosh=Number(String(ui.nioshValue.value).replace(",","."));
 if(!String(ui.nioshValue.value).trim()||!Number.isFinite(niosh)||niosh<30||niosh>120){
 ui.measureStatus.textContent="Saisis un LAeq NIOSH valide entre 30 et 120 dB(A).";return
 }
-referenceRows.push({noise:lastNoiseMeasure,niosh:Math.round(niosh*10)/10});
+var row={noise:lastNoiseMeasure,niosh:Math.round(niosh*10)/10};
+if(Number.isFinite(lastWeightedResult))row.weightedDbfsA=lastWeightedResult;
+else if(weightedSession&&lastMeasurementId!==null)pendingWeightedRow={id:lastMeasurementId,row:row};
+referenceRows.push(row);
 referenceRows=referenceRows.slice(-12);
 saveReferenceRows();
 lastNoiseMeasure=null;
@@ -256,12 +345,12 @@ ui.measureStatus.textContent="Relevé enregistré sur cet appareil. Tu peux reco
 ui.copyReferences.addEventListener("click",function(){
 if(!referenceRows.length)return;
 var report="NOISE / NIOSH LAeq — moyennes 20 secondes\n"+
-referenceRows.map(function(r){return "NOISE "+r.noise.toFixed(1)+"/100 ; NIOSH "+r.niosh.toFixed(1)+" dB(A)"}).join("\n");
+referenceRows.map(function(r){return "NOISE "+r.noise.toFixed(1)+"/100 ; NIOSH "+r.niosh.toFixed(1)+" dB(A)"+(Number.isFinite(r.weightedDbfsA)?" ; pondération A "+r.weightedDbfsA.toFixed(1)+" dBFS(A)":"")}).join("\n");
 if(!navigator.clipboard||!navigator.clipboard.writeText){ui.measureStatus.textContent="Copie manuellement la liste affichée : presse longtemps sur le texte.";return}
 navigator.clipboard.writeText(report).then(function(){ui.measureStatus.textContent="Relevés copiés : tu peux maintenant me les coller dans notre conversation.";},function(){ui.measureStatus.textContent="Copie bloquée par Safari : sélectionne directement la liste affichée."})
 });
 ui.clearReferences.addEventListener("click",function(){
-referenceRows=[];saveReferenceRows();
+referenceRows=[];pendingWeightedRow=null;saveReferenceRows();
 ui.measureStatus.textContent="Relevés effacés sur cet appareil. Les réglages de surveillance sont conservés."
 });
 restoreReferenceRows();
@@ -310,6 +399,8 @@ if(analyser){try{analyser.disconnect()}catch(err){}analyser=null}
 buffer=null;overSince=0;over=false;calibration=null;suspendedSince=0;resumePending=false;audioRetryUntil=0;
 cancelPendingMicro();
 if(testSession)cleanupTest(testSession);
+cleanupWeighted();pendingWeightedRow=null;
+ui.weightedStatus.textContent="Surveillance arrêtée. Nouveau moteur A inactif.";
 if(noiseMeasure)cancelNoiseMeasure("Mesure interrompue : surveillance arrêtée.");
 testingSound=false;
 ui.start.disabled=false;ui.stop.disabled=true;ui.calibrate.disabled=true;ui.capture.disabled=true;
@@ -409,7 +500,8 @@ stream=incoming;source=incomingSource;analyser=incomingAnalyser;
 buffer=new Float32Array(analyser.fftSize);active=true;starting=false;level=0;measured=0;history=[];sampleAt=0;lastTick=0;suspendedSince=0;resumePending=false;overSince=0;over=false;lastBeep=-1e12;audioRetryUntil=0;count=0;ui.count.textContent="0";
 ui.low.textContent="—";ui.high.textContent="—";ui.stop.disabled=false;ui.test.disabled=false;ui.calibrate.disabled=false;ui.capture.disabled=false;ui.measureStart.disabled=false;ui.micLabel.textContent="● Micro actif";
 stream.getAudioTracks().forEach(function(t){t.onended=function(){if(active)stop("Le microphone a été déconnecté. Relance la surveillance.")}});
-state("Surveillance active","good");say("Surveillance en cours. Laisse Safari au premier plan et l'écran allumé.");raf=requestAnimationFrame(tick)
+state("Surveillance active","good");say("Surveillance en cours. Laisse Safari au premier plan et l'écran allumé.");
+raf=requestAnimationFrame(tick);prepareWeighted(c,incomingSource,token)
 }catch(err){
 if(incoming&&incoming!==stream)incoming.getTracks().forEach(function(t){try{t.stop()}catch(e){}});
 if(incomingSource&&incomingSource!==source)try{incomingSource.disconnect()}catch(e){}
